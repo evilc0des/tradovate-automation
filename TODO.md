@@ -38,13 +38,13 @@
 ## Phase 2 - Shared Message Contracts
 
 - [x] Define `MarketDataMessage` schema
-- [ ] Define `BarUpdateMessage` schema
-- [ ] Define `QuoteUpdateMessage` schema
-- [ ] Define `TradePrintMessage` schema if needed
+- [x] Define `BarUpdateMessage` schema
+- [x] Define `QuoteUpdateMessage` schema
+- [x] Define `TradePrintMessage` schema if needed
 - [x] Define `ConnectionStateMessage` schema
 - [x] Define `TradeSignal` schema
 - [x] Define `SignalAck` or local acknowledgment flow if needed
-- [ ] Define error/event envelope model
+- [x] Define error/event envelope model
 - [x] Add version field to message schema
 - [x] Add schema docs with examples
 - [x] Add validation rules for all message types

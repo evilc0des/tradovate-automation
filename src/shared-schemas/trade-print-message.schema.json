@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "trade-print-message.schema.json",
+  "title": "TradePrintMessage",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "messageType",
+    "version",
+    "timestamp",
+    "sourceId",
+    "correlationId",
+    "instrument",
+    "price",
+    "size"
+  ],
+  "properties": {
+    "messageType": { "const": "TradePrintMessage" },
+    "version": { "const": "v1" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "sourceId": { "type": "string", "minLength": 1 },
+    "correlationId": { "type": "string", "minLength": 1 },
+    "instrument": { "type": "string", "minLength": 1 },
+    "price": { "type": "number" },
+    "size": { "type": "integer", "minimum": 1 },
+    "aggressorSide": {
+      "type": "string",
+      "enum": ["Buy", "Sell", "Unknown"]
+    }
+  }
+}

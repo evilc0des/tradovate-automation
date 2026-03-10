@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "quote-update-message.schema.json",
+  "title": "QuoteUpdateMessage",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "messageType",
+    "version",
+    "timestamp",
+    "sourceId",
+    "correlationId",
+    "instrument",
+    "bid",
+    "ask",
+    "bidSize",
+    "askSize"
+  ],
+  "properties": {
+    "messageType": { "const": "QuoteUpdateMessage" },
+    "version": { "const": "v1" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "sourceId": { "type": "string", "minLength": 1 },
+    "correlationId": { "type": "string", "minLength": 1 },
+    "instrument": { "type": "string", "minLength": 1 },
+    "bid": { "type": "number" },
+    "ask": { "type": "number" },
+    "bidSize": { "type": "integer", "minimum": 0 },
+    "askSize": { "type": "integer", "minimum": 0 }
+  }
+}

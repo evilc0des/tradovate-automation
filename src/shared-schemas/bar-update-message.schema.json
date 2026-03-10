@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bar-update-message.schema.json",
+  "title": "BarUpdateMessage",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "messageType",
+    "version",
+    "timestamp",
+    "sourceId",
+    "correlationId",
+    "instrument",
+    "barTime",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume"
+  ],
+  "properties": {
+    "messageType": { "const": "BarUpdateMessage" },
+    "version": { "const": "v1" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "sourceId": { "type": "string", "minLength": 1 },
+    "correlationId": { "type": "string", "minLength": 1 },
+    "instrument": { "type": "string", "minLength": 1 },
+    "barTime": { "type": "string", "format": "date-time" },
+    "interval": {
+      "type": "string",
+      "enum": ["1s", "5s", "15s", "30s", "1m", "5m", "15m", "1h", "1d"]
+    },
+    "open": { "type": "number" },
+    "high": { "type": "number" },
+    "low": { "type": "number" },
+    "close": { "type": "number" },
+    "volume": { "type": "integer", "minimum": 0 }
+  }
+}

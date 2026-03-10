@@ -30,6 +30,56 @@ Every message must include:
 }
 ```
 
+## QuoteUpdateMessage
+```json
+{
+  "messageType": "QuoteUpdateMessage",
+  "version": "v1",
+  "timestamp": "2026-03-10T14:00:00Z",
+  "sourceId": "ninjatrader.bridge",
+  "correlationId": "quote-123",
+  "instrument": "MES 06-26",
+  "bid": 5080.00,
+  "ask": 5080.25,
+  "bidSize": 15,
+  "askSize": 12
+}
+```
+
+## TradePrintMessage
+```json
+{
+  "messageType": "TradePrintMessage",
+  "version": "v1",
+  "timestamp": "2026-03-10T14:00:00Z",
+  "sourceId": "ninjatrader.bridge",
+  "correlationId": "trade-123",
+  "instrument": "MES 06-26",
+  "price": 5080.25,
+  "size": 3,
+  "aggressorSide": "Buy"
+}
+```
+
+## BarUpdateMessage
+```json
+{
+  "messageType": "BarUpdateMessage",
+  "version": "v1",
+  "timestamp": "2026-03-10T14:00:00Z",
+  "sourceId": "ninjatrader.bridge",
+  "correlationId": "bar-123",
+  "instrument": "MES 06-26",
+  "barTime": "2026-03-10T14:00:00Z",
+  "interval": "1m",
+  "open": 5079.75,
+  "high": 5080.50,
+  "low": 5079.50,
+  "close": 5080.25,
+  "volume": 321
+}
+```
+
 ## ConnectionStateMessage
 ```json
 {
@@ -77,9 +127,29 @@ Every message must include:
 }
 ```
 
+## ErrorEnvelope
+```json
+{
+  "messageType": "ErrorEnvelope",
+  "version": "v1",
+  "timestamp": "2026-03-10T14:00:00Z",
+  "sourceId": "ninjatrader.bridge",
+  "correlationId": "sig-123",
+  "code": "SIG_VALIDATION_FAILED",
+  "severity": "Error",
+  "message": "Signal rejected due to stale timestamp",
+  "details": "Signal age exceeded 3000ms",
+  "retryable": false
+}
+```
+
 ## Validation Notes
 - `version` is fixed to `v1`.
 - `orderType` supports only `Market` in v1.
 - `side` must be `Buy` or `Sell`.
 - `quantity` must be integer >= 1.
 - `signalId` must be globally unique for deduplication.
+- `QuoteUpdateMessage` requires both bid/ask price and size.
+- `TradePrintMessage` requires `price` and `size`.
+- `BarUpdateMessage` requires full OHLCV payload.
+- `ErrorEnvelope` should be emitted for validation, transport, and safety-state failures.

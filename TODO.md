@@ -107,19 +107,19 @@
 
 - [x] Build normalized signal DTO in NinjaTrader
 - [x] Build deduplication by signal ID
-- [ ] Persist processed signal IDs
-- [ ] Build safety state manager
+- [x] Persist processed signal IDs
+- [x] Build safety state manager
 - [x] Build risk engine
 - [x] Build config validation
 - [x] Restrict allowed accounts
 - [x] Restrict allowed instruments
 - [x] Restrict max order quantity
 - [x] Restrict live trading by config switch
-- [ ] Enforce session windows
+- [x] Enforce session windows
 - [x] Enforce staleness checks
-- [ ] Build simple market order submission path
-- [ ] Tag all orders with signal ID / correlation ID
-- [ ] Log submission attempts and outcomes
+- [x] Build simple market order submission path
+- [x] Tag all orders with signal ID / correlation ID
+- [x] Log submission attempts and outcomes
 
 ## Phase 8 - Order and Execution Tracking
 

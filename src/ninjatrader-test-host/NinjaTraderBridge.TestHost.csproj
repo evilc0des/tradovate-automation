@@ -13,7 +13,9 @@
     <Compile Include="..\ninjatrader\DedupStore.cs" Link="Bridge\DedupStore.cs" />
     <Compile Include="..\ninjatrader\Dtos.cs" Link="Bridge\Dtos.cs" />
     <Compile Include="..\ninjatrader\ExecutionBridge.cs" Link="Bridge\ExecutionBridge.cs" />
+    <Compile Include="..\ninjatrader\OrderSubmissionGateway.cs" Link="Bridge\OrderSubmissionGateway.cs" />
     <Compile Include="..\ninjatrader\RiskEngine.cs" Link="Bridge\RiskEngine.cs" />
+    <Compile Include="..\ninjatrader\SafetyStateManager.cs" Link="Bridge\SafetyStateManager.cs" />
     <Compile Include="..\ninjatrader\SignalValidator.cs" Link="Bridge\SignalValidator.cs" />
     <Compile Include="..\ninjatrader\MarketDataDtos.cs" Link="Bridge\MarketDataDtos.cs" />
     <Compile Include="..\ninjatrader\MarketDataEvents.cs" Link="Bridge\MarketDataEvents.cs" />

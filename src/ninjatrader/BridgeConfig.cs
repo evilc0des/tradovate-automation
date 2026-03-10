@@ -11,9 +11,13 @@ public sealed class BridgeConfig
     public bool DisarmOnStartup { get; init; } = true;
     public int MaxSignalAgeMs { get; init; } = 3000;
     public int MaxOrderQuantity { get; init; } = 1;
+    public string SessionStartUtc { get; init; } = "00:00";
+    public string SessionEndUtc { get; init; } = "23:59";
 
     public string AllowedAccount { get; init; } = "SIM101";
     public string[] AllowedInstruments { get; init; } = ["MES 06-26"];
     public string[] AllowedSignalSources { get; init; } = ["rust.strategy"];
     public int SignalReadTimeoutMs { get; init; } = 15000;
+    public string ProcessedSignalStorePath { get; init; } = "state/processed-signal-ids.txt";
+    public string SafetyStatePath { get; init; } = "state/safety-state.json";
 }

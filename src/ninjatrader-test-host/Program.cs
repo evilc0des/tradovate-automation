@@ -1,0 +1,313 @@
+using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+using System.Text.Json;
+using NinjaTraderTradovateBridge;
+
+var mode = args.Length > 0 ? args[0] : "publisher-smoke";
+
+if (string.Equals(mode, "--rust-e2e", StringComparison.OrdinalIgnoreCase))
+{
+    await RunRustE2EAsync();
+    return;
+}
+
+await RunPublisherSmokeAsync();
+
+static async Task RunPublisherSmokeAsync()
+{
+    var config = new BridgeConfig
+    {
+        MarketDataHost = "127.0.0.1",
+        MarketDataPort = 19100,
+        SignalHost = "127.0.0.1",
+        SignalPort = 19101,
+        LiveTradingEnabled = false,
+        DisarmOnStartup = false,
+        AllowedAccount = "SIM101",
+        AllowedInstruments = ["MES 06-26"],
+    };
+
+    using var cts = new CancellationTokenSource();
+    cts.CancelAfter(TimeSpan.FromSeconds(3));
+
+    var logger = new ConsoleBridgeLogger();
+
+    var marketDataServerTask = RunMarketDataCaptureServerAsync(config.MarketDataPort, cts.Token, "[FRAME]");
+    await Task.Delay(150, cts.Token);
+
+    await using var transport = new NdjsonTcpMarketDataTransport(config, logger);
+    var publisher = new MarketDataPublisher(transport, logger);
+    var feed = new SimulationMarketDataFeed(publisher, "MES 06-26");
+
+    try
+    {
+        await feed.RunAsync(cts.Token);
+    }
+    catch (OperationCanceledException)
+    {
+        // expected on test timeout
+    }
+
+    await marketDataServerTask;
+
+    RunExecutionBridgeSmokeCheck(config);
+
+    Console.WriteLine("Test host completed.");
+}
+
+static async Task RunRustE2EAsync()
+{
+    var marketDataPort = 9100;
+    var signalPort = 9101;
+    var instrument = "MES 06-26";
+
+    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+    Console.WriteLine("[RUST-E2E] Starting end-to-end run.");
+
+    var signalCaptureTask = RunSignalCaptureServerAsync(signalPort, cts.Token);
+
+    var rustDir = LocateRustServiceDirectory();
+    using var rustProcess = StartRustService(rustDir, marketDataPort, signalPort, instrument);
+    try
+    {
+        await Task.Delay(2500, cts.Token);
+        await SendMarketDataBurstToRustAsync(marketDataPort, instrument, cts.Token);
+
+        var signal = await signalCaptureTask;
+        Console.WriteLine($"[RUST-SIGNAL] {signal}");
+        Console.WriteLine("[RUST-E2E] Completed.");
+    }
+    finally
+    {
+        TryStopProcess(rustProcess);
+    }
+}
+
+static async Task RunMarketDataCaptureServerAsync(int port, CancellationToken cancellationToken, string prefix)
+{
+    var listener = new TcpListener(IPAddress.Loopback, port);
+    listener.Start();
+    Console.WriteLine($"[HOST] Listening on 127.0.0.1:{port}");
+
+    try
+    {
+        using var client = await listener.AcceptTcpClientAsync(cancellationToken);
+        Console.WriteLine("[HOST] Publisher connected.");
+
+        await using var stream = client.GetStream();
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var line = await reader.ReadLineAsync(cancellationToken);
+            if (line is null)
+            {
+                break;
+            }
+
+            Console.WriteLine($"{prefix} {line}");
+        }
+    }
+    catch (OperationCanceledException)
+    {
+        Console.WriteLine("[HOST] Capture server cancellation reached.");
+    }
+    finally
+    {
+        listener.Stop();
+    }
+}
+
+static async Task<string> RunSignalCaptureServerAsync(int signalPort, CancellationToken cancellationToken)
+{
+    var listener = new TcpListener(IPAddress.Loopback, signalPort);
+    listener.Start();
+    Console.WriteLine($"[RUST-E2E] Listening for TradeSignal on 127.0.0.1:{signalPort}");
+
+    try
+    {
+        using var client = await listener.AcceptTcpClientAsync(cancellationToken);
+        await using var stream = client.GetStream();
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var line = await reader.ReadLineAsync(cancellationToken);
+            if (!string.IsNullOrWhiteSpace(line))
+            {
+                return line;
+            }
+        }
+    }
+    finally
+    {
+        listener.Stop();
+    }
+
+    throw new TimeoutException("No signal received from Rust service.");
+}
+
+static Process StartRustService(string rustDir, int marketDataPort, int signalPort, string instrument)
+{
+    var startInfo = new ProcessStartInfo
+    {
+        FileName = "cargo",
+        Arguments = "run",
+        WorkingDirectory = rustDir,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+        UseShellExecute = false,
+        CreateNoWindow = true,
+    };
+
+    startInfo.Environment["MARKET_DATA_BIND"] = $"127.0.0.1:{marketDataPort}";
+    startInfo.Environment["SIGNAL_BIND"] = $"127.0.0.1:{signalPort}";
+    startInfo.Environment["ALLOWED_ACCOUNT"] = "SIM101";
+    startInfo.Environment["ALLOWED_INSTRUMENTS"] = instrument;
+
+    var process = Process.Start(startInfo) ?? throw new InvalidOperationException("Failed to start Rust strategy service process.");
+
+    _ = Task.Run(async () =>
+    {
+        while (!process.HasExited)
+        {
+            var line = await process.StandardOutput.ReadLineAsync();
+            if (line is null)
+            {
+                break;
+            }
+
+            Console.WriteLine($"[RUST] {line}");
+        }
+    });
+
+    _ = Task.Run(async () =>
+    {
+        while (!process.HasExited)
+        {
+            var line = await process.StandardError.ReadLineAsync();
+            if (line is null)
+            {
+                break;
+            }
+
+            Console.WriteLine($"[RUST-ERR] {line}");
+        }
+    });
+
+    AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+    {
+        TryStopProcess(process);
+    };
+
+    return process;
+}
+
+static async Task SendMarketDataBurstToRustAsync(int marketDataPort, string instrument, CancellationToken cancellationToken)
+{
+    using var client = new TcpClient();
+    await client.ConnectAsync(IPAddress.Loopback, marketDataPort, cancellationToken);
+    await using var stream = client.GetStream();
+    await using var writer = new StreamWriter(stream, new UTF8Encoding(false)) { NewLine = "\n", AutoFlush = true };
+
+    // First frame seeds quote; second frame sets lastPrice above ask to trigger deterministic Buy signal.
+    var quoteOnly = new
+    {
+        messageType = "MarketDataMessage",
+        version = "v1",
+        timestamp = DateTimeOffset.UtcNow,
+        sourceId = "test-host",
+        correlationId = Guid.NewGuid().ToString("N"),
+        instrument,
+        eventType = "QuoteUpdate",
+        bid = 5000.0,
+        ask = 5000.25,
+    };
+
+    var trigger = new
+    {
+        messageType = "MarketDataMessage",
+        version = "v1",
+        timestamp = DateTimeOffset.UtcNow,
+        sourceId = "test-host",
+        correlationId = Guid.NewGuid().ToString("N"),
+        instrument,
+        eventType = "TradePrint",
+        bid = 5000.0,
+        ask = 5000.25,
+        lastPrice = 5000.5,
+        lastSize = 1,
+    };
+
+    await writer.WriteLineAsync(JsonSerializer.Serialize(quoteOnly));
+    await writer.WriteLineAsync(JsonSerializer.Serialize(trigger));
+}
+
+static string LocateRustServiceDirectory()
+{
+    var current = Directory.GetCurrentDirectory();
+    for (var i = 0; i < 6; i++)
+    {
+        var candidate = Path.Combine(current, "src", "rust", "strategy-service");
+        if (File.Exists(Path.Combine(candidate, "Cargo.toml")))
+        {
+            return candidate;
+        }
+
+        var parent = Directory.GetParent(current);
+        if (parent is null)
+        {
+            break;
+        }
+
+        current = parent.FullName;
+    }
+
+    throw new DirectoryNotFoundException("Could not locate src/rust/strategy-service from current directory.");
+}
+
+static void TryStopProcess(Process process)
+{
+    try
+    {
+        if (process.HasExited)
+        {
+            return;
+        }
+
+        process.Kill(entireProcessTree: true);
+        process.WaitForExit(2000);
+    }
+    catch
+    {
+        // best effort cleanup
+    }
+}
+
+static void RunExecutionBridgeSmokeCheck(BridgeConfig config)
+{
+    var bridge = new ExecutionBridge(config);
+    bridge.Arm();
+
+    var signal = new TradeSignal
+    {
+        MessageType = "TradeSignal",
+        Version = "v1",
+        Timestamp = DateTimeOffset.UtcNow,
+        SourceId = "test-host",
+        CorrelationId = Guid.NewGuid().ToString("N"),
+        SignalId = Guid.NewGuid().ToString("N"),
+        StrategyId = "smoke",
+        Account = "SIM101",
+        Instrument = "MES 06-26",
+        Side = "Buy",
+        Quantity = 1,
+        OrderType = "Market",
+        Reason = "smoke-check",
+    };
+
+    var ack = bridge.HandleSignal(signal);
+    Console.WriteLine($"[ACK] status={ack.Status} detail={ack.Detail}");
+}

@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\ninjatrader\BridgeConfig.cs" Link="Bridge\BridgeConfig.cs" />
+    <Compile Include="..\ninjatrader\BridgeLogger.cs" Link="Bridge\BridgeLogger.cs" />
+    <Compile Include="..\ninjatrader\DedupStore.cs" Link="Bridge\DedupStore.cs" />
+    <Compile Include="..\ninjatrader\Dtos.cs" Link="Bridge\Dtos.cs" />
+    <Compile Include="..\ninjatrader\ExecutionBridge.cs" Link="Bridge\ExecutionBridge.cs" />
+    <Compile Include="..\ninjatrader\RiskEngine.cs" Link="Bridge\RiskEngine.cs" />
+    <Compile Include="..\ninjatrader\SignalValidator.cs" Link="Bridge\SignalValidator.cs" />
+    <Compile Include="..\ninjatrader\MarketDataDtos.cs" Link="Bridge\MarketDataDtos.cs" />
+    <Compile Include="..\ninjatrader\MarketDataEvents.cs" Link="Bridge\MarketDataEvents.cs" />
+    <Compile Include="..\ninjatrader\MarketDataNormalizer.cs" Link="Bridge\MarketDataNormalizer.cs" />
+    <Compile Include="..\ninjatrader\MarketDataPublisher.cs" Link="Bridge\MarketDataPublisher.cs" />
+    <Compile Include="..\ninjatrader\MarketDataTransport.cs" Link="Bridge\MarketDataTransport.cs" />
+    <Compile Include="..\ninjatrader\NinjaTraderEventAdapter.cs" Link="Bridge\NinjaTraderEventAdapter.cs" />
+    <Compile Include="..\ninjatrader\SimulationMarketDataFeed.cs" Link="Bridge\SimulationMarketDataFeed.cs" />
+  </ItemGroup>
+</Project>

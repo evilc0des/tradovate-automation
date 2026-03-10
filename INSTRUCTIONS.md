@@ -26,6 +26,12 @@
 2. Configure bindings to match `.env` port values.
 3. Start in simulation account only.
 
+## NinjaTrader Test Host (Outside NinjaTrader)
+1. Run `dotnet build src/ninjatrader-test-host/NinjaTraderBridge.TestHost.csproj`.
+2. Run `dotnet run --project src/ninjatrader-test-host/NinjaTraderBridge.TestHost.csproj`.
+3. Confirm NDJSON market-data frames and final `[ACK]` line in output.
+4. Run `dotnet run --project src/ninjatrader-test-host/NinjaTraderBridge.TestHost.csproj -- --rust-e2e` for one-command Rust E2E signal validation.
+
 ## Safety Defaults
 - Live trading disabled by default.
 - Fail closed when validation fails or state is uncertain.

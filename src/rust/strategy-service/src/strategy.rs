@@ -5,6 +5,7 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use crate::config::AppConfig;
+use crate::features;
 use crate::models::{MarketDataMessage, TradeSignal};
 use crate::state::MarketState;
 
@@ -38,10 +39,10 @@ impl DeterministicStrategy {
             }
         }
 
-        let snapshot = state.get(&msg.instrument)?;
-        let bid = snapshot.bid?;
-        let ask = snapshot.ask?;
-        let last = snapshot.last?;
+        let f = features::compute_features(state, &msg.instrument)?;
+        let bid = f.bid;
+        let ask = f.ask;
+        let last = f.last;
 
         let side = if last > ask {
             Some("Buy")
@@ -68,7 +69,10 @@ impl DeterministicStrategy {
             side: side.to_string(),
             quantity: 1,
             order_type: "Market".to_string(),
-            reason: "deterministic threshold rule".to_string(),
+            reason: format!(
+                "deterministic threshold rule spread={:.4} mid={:.4} momentum3={:?} sessionTicks={}",
+                f.spread, f.mid_price, f.momentum_3, f.session_ticks
+            ),
         })
     }
 }

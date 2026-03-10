@@ -71,9 +71,9 @@
 - [x] Add inbound market data parser in Rust
 - [x] Add internal event loop
 - [x] Add normalized in-memory market state
-- [ ] Add graceful shutdown handling
-- [ ] Add error classification and logging
-- [ ] Add configuration validation in Rust
+- [x] Add graceful shutdown handling
+- [x] Add error classification and logging
+- [x] Add configuration validation in Rust
 
 ## Phase 5 - Rust Market State and Strategy Pipeline
 
@@ -81,9 +81,9 @@
 - [x] Build market state store in Rust
 - [x] Track best bid/ask
 - [x] Track last trade
-- [ ] Track rolling bars if needed
-- [ ] Track simple session state
-- [ ] Add feature computation layer
+- [x] Track rolling bars if needed
+- [x] Track simple session state
+- [x] Add feature computation layer
 - [x] Add rule-based strategy engine interface
 - [x] Implement first simple strategy:
   - [x] minimal deterministic rule-based signal

@@ -1,4 +1,7 @@
 use std::env;
+use std::net::SocketAddr;
+
+use anyhow::{anyhow, Result};
 
 #[derive(Clone, Debug)]
 pub struct AppConfig {
@@ -21,13 +24,40 @@ impl AppConfig {
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .collect();
+        let cooldown_ms = env::var("COOLDOWN_MS")
+            .ok()
+            .and_then(|value| value.parse::<u64>().ok())
+            .unwrap_or(2000);
 
         Self {
             market_data_bind,
             signal_bind,
             allowed_account,
             allowed_instruments,
-            cooldown_ms: 2000,
+            cooldown_ms,
         }
+    }
+
+    pub fn validate(&self) -> Result<()> {
+        let _market_addr: SocketAddr = self
+            .market_data_bind
+            .parse()
+            .map_err(|_| anyhow!("MARKET_DATA_BIND must be a valid host:port"))?;
+        let _signal_addr: SocketAddr = self
+            .signal_bind
+            .parse()
+            .map_err(|_| anyhow!("SIGNAL_BIND must be a valid host:port"))?;
+
+        if self.allowed_account.trim().is_empty() {
+            return Err(anyhow!("ALLOWED_ACCOUNT cannot be empty"));
+        }
+        if self.allowed_instruments.is_empty() {
+            return Err(anyhow!("ALLOWED_INSTRUMENTS must include at least one instrument"));
+        }
+        if self.cooldown_ms > 60_000 {
+            return Err(anyhow!("COOLDOWN_MS is too large for v1 (max 60000)"));
+        }
+
+        Ok(())
     }
 }

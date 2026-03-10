@@ -1,0 +1,21 @@
+# Rust
+**/target/
+
+# .NET / C#
+**/bin/
+**/obj/
+*.user
+*.suo
+
+# Logs and runtime state
+logs/
+state/
+*.log
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/settings.json
+
+# Env files
+.env

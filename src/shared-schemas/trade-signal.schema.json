@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "trade-signal.schema.json",
+  "title": "TradeSignal",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "messageType",
+    "version",
+    "timestamp",
+    "sourceId",
+    "correlationId",
+    "signalId",
+    "strategyId",
+    "account",
+    "instrument",
+    "side",
+    "quantity",
+    "orderType"
+  ],
+  "properties": {
+    "messageType": { "const": "TradeSignal" },
+    "version": { "const": "v1" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "sourceId": { "type": "string", "minLength": 1 },
+    "correlationId": { "type": "string", "minLength": 1 },
+    "signalId": { "type": "string", "minLength": 1 },
+    "strategyId": { "type": "string", "minLength": 1 },
+    "account": { "type": "string", "minLength": 1 },
+    "instrument": { "type": "string", "minLength": 1 },
+    "side": { "type": "string", "enum": ["Buy", "Sell"] },
+    "quantity": { "type": "integer", "minimum": 1 },
+    "orderType": { "type": "string", "const": "Market" },
+    "reason": { "type": "string" }
+  }
+}

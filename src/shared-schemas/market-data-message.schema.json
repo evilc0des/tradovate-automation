@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "market-data-message.schema.json",
+  "title": "MarketDataMessage",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "messageType",
+    "version",
+    "timestamp",
+    "sourceId",
+    "correlationId",
+    "instrument",
+    "eventType"
+  ],
+  "properties": {
+    "messageType": { "const": "MarketDataMessage" },
+    "version": { "const": "v1" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "sourceId": { "type": "string", "minLength": 1 },
+    "correlationId": { "type": "string", "minLength": 1 },
+    "instrument": { "type": "string", "minLength": 1 },
+    "eventType": {
+      "type": "string",
+      "enum": ["QuoteUpdate", "TradePrint", "BarUpdate"]
+    },
+    "lastPrice": { "type": "number" },
+    "bid": { "type": "number" },
+    "ask": { "type": "number" },
+    "lastSize": { "type": "integer", "minimum": 0 }
+  }
+}

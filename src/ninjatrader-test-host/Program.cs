@@ -69,7 +69,7 @@ static async Task RunPublisherSmokeAsync()
     await Task.Delay(150, cts.Token);
 
     await using var transport = new NdjsonTcpMarketDataTransport(config, logger);
-    var publisher = new MarketDataPublisher(transport, logger);
+    var publisher = new MarketDataPublisher(config, transport, logger);
     var feed = new SimulationMarketDataFeed(publisher, "MES 06-26");
 
     try

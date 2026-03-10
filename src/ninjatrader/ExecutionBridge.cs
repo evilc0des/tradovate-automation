@@ -16,6 +16,7 @@ public sealed class ExecutionBridge
     private readonly ActualStateSnapshotStore _actualState;
     private readonly ReconciliationEngine _reconciliation;
     private readonly RuntimeMarkersStore _runtimeMarkers;
+    private readonly AmbiguousSignalStore _ambiguousSignals;
 
     public string? LastOrderId { get; private set; }
     public TradeSignal? LastAcceptedSignal { get; private set; }
@@ -38,6 +39,7 @@ public sealed class ExecutionBridge
         _reconciliation = new ReconciliationEngine(config.ReconciliationReportPath, _logger);
         _lifecycleTracker = new OrderLifecycleTracker(journal, _actualState, _logger);
         _runtimeMarkers = new RuntimeMarkersStore(config.RuntimeMarkersPath, _logger);
+        _ambiguousSignals = new AmbiguousSignalStore(config.AmbiguousSignalStorePath, _logger);
 
         _runtimeMarkers.MarkStartup();
         if (health.HasCriticalIssues)
@@ -53,6 +55,15 @@ public sealed class ExecutionBridge
             _logger.Warn($"Signal rejected while disarmed signalId={signal.SignalId} reason={_safety.LastReason}");
             _expectedState.TrackRejected(signal, "Bridge disarmed");
             return Ack(signal, "Disarmed", "Bridge is currently disarmed.");
+        }
+
+        if (_ambiguousSignals.IsBlocked(signal))
+        {
+            var detail = "Signal blocked due to prior ambiguous execution outcome; manual operator intervention required.";
+            _logger.Warn($"Blocking ambiguous replay signalId={signal.SignalId} correlationId={signal.CorrelationId}");
+            _lifecycleTracker.TrackRejected(signal, detail);
+            _expectedState.TrackRejected(signal, detail);
+            return Ack(signal, "Rejected", detail);
         }
 
         if (_dedupStore.IsDuplicate(signal.SignalId))
@@ -148,6 +159,7 @@ public sealed class ExecutionBridge
 
         _lifecycleTracker.TrackExecutionAmbiguity(LastAcceptedSignal, orderId, detail);
         _expectedState.TrackAmbiguous(LastAcceptedSignal, orderId, detail);
+        _ambiguousSignals.MarkAmbiguous(LastAcceptedSignal);
         Disarm($"Execution ambiguity detected for orderId={orderId}");
     }
 

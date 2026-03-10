@@ -107,6 +107,14 @@ public sealed class SignalIntakeTransport
                     continue;
                 }
 
+                if (Encoding.UTF8.GetByteCount(trimmed) > _config.MaxSignalFrameBytes)
+                {
+                    var corr = TryExtractCorrelationId(trimmed) ?? Guid.NewGuid().ToString("N");
+                    await WriteErrorAsync(writer, corr, "SIG_FRAME_TOO_LARGE", "Signal frame too large", "Exceeded MaxSignalFrameBytes", retryable: true).ConfigureAwait(false);
+                    _logger.Warn("Rejected oversized signal frame.");
+                    continue;
+                }
+
                 var correlationId = TryExtractCorrelationId(trimmed) ?? Guid.NewGuid().ToString("N");
                 var signalId = TryExtractSignalId(trimmed) ?? string.Empty;
 

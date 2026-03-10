@@ -61,16 +61,36 @@ public sealed class NdjsonTcpMarketDataTransport : IMarketDataTransport
 
         await ResetConnectionAsync().ConfigureAwait(false);
 
-        _client = new TcpClient();
-        _client.NoDelay = true;
-        await _client.ConnectAsync(_config.MarketDataHost, _config.MarketDataPort, cancellationToken).ConfigureAwait(false);
-        _writer = new StreamWriter(_client.GetStream(), new UTF8Encoding(false))
+        Exception? lastError = null;
+        for (var attempt = 1; attempt <= _config.MarketDataReconnectMaxAttempts; attempt++)
         {
-            AutoFlush = true,
-            NewLine = "\n",
-        };
+            try
+            {
+                _client = new TcpClient();
+                _client.NoDelay = true;
+                await _client.ConnectAsync(_config.MarketDataHost, _config.MarketDataPort, cancellationToken).ConfigureAwait(false);
+                _writer = new StreamWriter(_client.GetStream(), new UTF8Encoding(false))
+                {
+                    AutoFlush = true,
+                    NewLine = "\n",
+                };
 
-        _logger.Info($"Connected market data transport to {_config.MarketDataHost}:{_config.MarketDataPort}.");
+                _logger.Info($"Connected market data transport to {_config.MarketDataHost}:{_config.MarketDataPort} on attempt {attempt}.");
+                return;
+            }
+            catch (Exception ex)
+            {
+                lastError = ex;
+                _logger.Warn($"Market data connect attempt {attempt}/{_config.MarketDataReconnectMaxAttempts} failed.");
+                await ResetConnectionAsync().ConfigureAwait(false);
+                if (attempt < _config.MarketDataReconnectMaxAttempts)
+                {
+                    await Task.Delay(_config.MarketDataReconnectBackoffMs, cancellationToken).ConfigureAwait(false);
+                }
+            }
+        }
+
+        throw new IOException("Unable to establish market data transport connection.", lastError);
     }
 
     private async Task ResetConnectionAsync()

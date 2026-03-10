@@ -161,15 +161,15 @@
 
 ## Phase 11 - Transport Hardening
 
-- [ ] Choose and finalize local transport for v1
-- [ ] Add message framing
-- [ ] Add heartbeats
-- [ ] Add connection lifecycle logging
-- [ ] Add reconnect strategy for non-critical paths
-- [ ] Ensure no blind resubmission of ambiguous trade signals
-- [ ] Add backpressure handling for market data
-- [ ] Add bounded queues where needed
-- [ ] Add safe drop/coalesce policy for excessive market data volume
+- [x] Choose and finalize local transport for v1
+- [x] Add message framing
+- [x] Add heartbeats
+- [x] Add connection lifecycle logging
+- [x] Add reconnect strategy for non-critical paths
+- [x] Ensure no blind resubmission of ambiguous trade signals
+- [x] Add backpressure handling for market data
+- [x] Add bounded queues where needed
+- [x] Add safe drop/coalesce policy for excessive market data volume
 
 ## Phase 12 - Rust Strategy Extensibility
 

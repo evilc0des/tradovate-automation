@@ -11,6 +11,7 @@
     <Compile Include="..\ninjatrader\BridgeConfig.cs" Link="Bridge\BridgeConfig.cs" />
     <Compile Include="..\ninjatrader\BridgeLogger.cs" Link="Bridge\BridgeLogger.cs" />
     <Compile Include="..\ninjatrader\ActualStateSnapshotStore.cs" Link="Bridge\ActualStateSnapshotStore.cs" />
+    <Compile Include="..\ninjatrader\AmbiguousSignalStore.cs" Link="Bridge\AmbiguousSignalStore.cs" />
     <Compile Include="..\ninjatrader\DedupStore.cs" Link="Bridge\DedupStore.cs" />
     <Compile Include="..\ninjatrader\ExecutionJournal.cs" Link="Bridge\ExecutionJournal.cs" />
     <Compile Include="..\ninjatrader\Dtos.cs" Link="Bridge\Dtos.cs" />

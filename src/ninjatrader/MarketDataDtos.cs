@@ -164,3 +164,17 @@ public sealed class InstrumentSessionMetadataMessage : MessageEnvelope
     [JsonPropertyName("pointValue")]
     public double PointValue { get; init; }
 }
+
+public sealed class HeartbeatMessage : MessageEnvelope
+{
+    public HeartbeatMessage()
+    {
+        MessageType = "HeartbeatMessage";
+    }
+
+    [JsonPropertyName("channel")]
+    public string Channel { get; init; } = "MarketData";
+
+    [JsonPropertyName("status")]
+    public string Status { get; init; } = "Alive";
+}

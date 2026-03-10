@@ -18,6 +18,11 @@ This folder contains the NinjaTrader-side execution and market-data publisher sc
 - `NinjaTraderEventAdapter.cs`
 - `SimulationMarketDataFeed.cs`
 - `SignalIntakeTransport.cs`
+- `ExecutionJournal.cs`
+- `ActualStateSnapshotStore.cs`
+- `OrderLifecycleTracker.cs`
+- `OrderSubmissionGateway.cs`
+- `SafetyStateManager.cs`
 
 ## Publisher flow
 1. NinjaTrader callback data is mapped into event records via `NinjaTraderEventAdapter`.
@@ -36,3 +41,9 @@ Use `SimulationMarketDataFeed` for simulation-safe test mode before live callbac
 3. Malformed payloads return `ErrorEnvelope`.
 4. Valid payloads route through `ExecutionBridge` and return `SignalAck`.
 5. Source IDs are tracked and logged on first sighting.
+
+## Phase 8 lifecycle flow
+1. `ExecutionBridge` records accepted/rejected submission outcomes.
+2. `OrderLifecycleTracker` records accepted/rejected/partial/full/canceled/ambiguous events.
+3. `ExecutionJournal` appends NDJSON lifecycle events.
+4. `ActualStateSnapshotStore` maintains persisted last-known order states.

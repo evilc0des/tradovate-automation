@@ -11,6 +11,10 @@ public sealed class ExecutionBridge
     private readonly SafetyStateManager _safety;
     private readonly IOrderSubmissionGateway _orderGateway;
     private readonly IBridgeLogger _logger;
+    private readonly OrderLifecycleTracker _lifecycleTracker;
+
+    public string? LastOrderId { get; private set; }
+    public TradeSignal? LastAcceptedSignal { get; private set; }
 
     public bool IsDisarmed => _safety.IsDisarmed;
 
@@ -23,6 +27,9 @@ public sealed class ExecutionBridge
         _riskEngine = new RiskEngine();
         _safety = new SafetyStateManager(config.SafetyStatePath, config.DisarmOnStartup, _logger);
         _orderGateway = orderGateway ?? new SimulatedOrderSubmissionGateway();
+        var journal = new ExecutionJournal(config.ExecutionJournalPath, _logger);
+        var actualState = new ActualStateSnapshotStore(config.ActualStateSnapshotPath, _logger);
+        _lifecycleTracker = new OrderLifecycleTracker(journal, actualState, _logger);
     }
 
     public SignalAck HandleSignal(TradeSignal signal)
@@ -35,11 +42,13 @@ public sealed class ExecutionBridge
 
         if (_dedupStore.IsDuplicate(signal.SignalId))
         {
+            _lifecycleTracker.TrackRejected(signal, "Duplicate signalId.");
             return Ack(signal, "Rejected", "Duplicate signalId.");
         }
 
         if (!_validator.Validate(_config, signal, out var validationReason))
         {
+            _lifecycleTracker.TrackRejected(signal, validationReason);
             return Ack(signal, "Rejected", validationReason);
         }
 
@@ -50,6 +59,7 @@ public sealed class ExecutionBridge
         if (!canSubmit)
         {
             _logger.Warn($"Risk rejected signalId={signal.SignalId} detail={riskReason}");
+            _lifecycleTracker.TrackRejected(signal, riskReason);
             return Ack(signal, "Rejected", riskReason);
         }
 
@@ -62,12 +72,58 @@ public sealed class ExecutionBridge
         if (!submission.Accepted)
         {
             _logger.Warn($"Order submission rejected signalId={signal.SignalId} detail={submission.Detail}");
+            _lifecycleTracker.TrackRejected(signal, submission.Detail);
             return Ack(signal, "Rejected", submission.Detail);
         }
 
         _logger.Info(
             $"Order submission accepted orderId={submission.OrderId} signalIdTag={submission.SignalIdTag} correlationIdTag={submission.CorrelationIdTag}");
+
+        LastOrderId = submission.OrderId;
+        LastAcceptedSignal = signal;
+        _lifecycleTracker.TrackAccepted(signal, submission);
+
         return Ack(signal, "Accepted", $"{submission.Detail} [{mode}]");
+    }
+
+    public void OnOrderPartiallyFilled(string orderId, int filledQuantity, string detail)
+    {
+        if (LastAcceptedSignal is null)
+        {
+            return;
+        }
+
+        _lifecycleTracker.TrackPartialFill(LastAcceptedSignal, orderId, filledQuantity, detail);
+    }
+
+    public void OnOrderFilled(string orderId, int filledQuantity, string detail)
+    {
+        if (LastAcceptedSignal is null)
+        {
+            return;
+        }
+
+        _lifecycleTracker.TrackFullFill(LastAcceptedSignal, orderId, filledQuantity, detail);
+    }
+
+    public void OnOrderCanceled(string orderId, int filledQuantity, string detail)
+    {
+        if (LastAcceptedSignal is null)
+        {
+            return;
+        }
+
+        _lifecycleTracker.TrackCanceled(LastAcceptedSignal, orderId, filledQuantity, detail);
+    }
+
+    public void OnExecutionAmbiguity(string orderId, string detail)
+    {
+        if (LastAcceptedSignal is null)
+        {
+            return;
+        }
+
+        _lifecycleTracker.TrackExecutionAmbiguity(LastAcceptedSignal, orderId, detail);
     }
 
     public void Arm()

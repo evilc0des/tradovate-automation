@@ -10,7 +10,9 @@
   <ItemGroup>
     <Compile Include="..\ninjatrader\BridgeConfig.cs" Link="Bridge\BridgeConfig.cs" />
     <Compile Include="..\ninjatrader\BridgeLogger.cs" Link="Bridge\BridgeLogger.cs" />
+    <Compile Include="..\ninjatrader\ActualStateSnapshotStore.cs" Link="Bridge\ActualStateSnapshotStore.cs" />
     <Compile Include="..\ninjatrader\DedupStore.cs" Link="Bridge\DedupStore.cs" />
+    <Compile Include="..\ninjatrader\ExecutionJournal.cs" Link="Bridge\ExecutionJournal.cs" />
     <Compile Include="..\ninjatrader\Dtos.cs" Link="Bridge\Dtos.cs" />
     <Compile Include="..\ninjatrader\ExecutionBridge.cs" Link="Bridge\ExecutionBridge.cs" />
     <Compile Include="..\ninjatrader\OrderSubmissionGateway.cs" Link="Bridge\OrderSubmissionGateway.cs" />
@@ -23,6 +25,7 @@
     <Compile Include="..\ninjatrader\MarketDataPublisher.cs" Link="Bridge\MarketDataPublisher.cs" />
     <Compile Include="..\ninjatrader\MarketDataTransport.cs" Link="Bridge\MarketDataTransport.cs" />
     <Compile Include="..\ninjatrader\NinjaTraderEventAdapter.cs" Link="Bridge\NinjaTraderEventAdapter.cs" />
+    <Compile Include="..\ninjatrader\OrderLifecycleTracker.cs" Link="Bridge\OrderLifecycleTracker.cs" />
     <Compile Include="..\ninjatrader\SignalIntakeTransport.cs" Link="Bridge\SignalIntakeTransport.cs" />
     <Compile Include="..\ninjatrader\SimulationMarketDataFeed.cs" Link="Bridge\SimulationMarketDataFeed.cs" />
   </ItemGroup>

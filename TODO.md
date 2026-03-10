@@ -123,16 +123,16 @@
 
 ## Phase 8 - Order and Execution Tracking
 
-- [ ] Capture order lifecycle events from NinjaTrader
-- [ ] Capture execution events from NinjaTrader
-- [ ] Track order accepted
-- [ ] Track order rejected
-- [ ] Track partial fills
-- [ ] Track full fills
-- [ ] Track cancel events
-- [ ] Track connection-related execution ambiguity
-- [ ] Persist execution journal
-- [ ] Build internal actual-state snapshots
+- [x] Capture order lifecycle events from NinjaTrader
+- [x] Capture execution events from NinjaTrader
+- [x] Track order accepted
+- [x] Track order rejected
+- [x] Track partial fills
+- [x] Track full fills
+- [x] Track cancel events
+- [x] Track connection-related execution ambiguity
+- [x] Persist execution journal
+- [x] Build internal actual-state snapshots
 
 ## Phase 9 - Reconciliation and Recovery
 

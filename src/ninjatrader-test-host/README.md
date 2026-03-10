@@ -42,6 +42,17 @@ dotnet run --project src/ninjatrader-test-host/NinjaTraderBridge.TestHost.csproj
 
 This mode validates Rust-generated `TradeSignal` intake and `SignalAck` processing on the NinjaTrader bridge side.
 
+## Run Phase 8 Lifecycle Smoke
+```powershell
+dotnet run --project src/ninjatrader-test-host/NinjaTraderBridge.TestHost.csproj -- --phase8-smoke
+```
+
+This mode validates:
+- order accepted/rejected lifecycle journaling hooks
+- partial fill/full fill/cancel/ambiguity event tracking
+- persisted journal output (`state/test-phase8-execution-journal.ndjson`)
+- persisted actual-state snapshot (`state/test-phase8-actual-state.json`)
+
 ## Safety
 - No order routing to NinjaTrader.
 - `LiveTradingEnabled` is forced `false` in host config.

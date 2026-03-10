@@ -20,4 +20,6 @@ public sealed class BridgeConfig
     public int SignalReadTimeoutMs { get; init; } = 15000;
     public string ProcessedSignalStorePath { get; init; } = "state/processed-signal-ids.txt";
     public string SafetyStatePath { get; init; } = "state/safety-state.json";
+    public string ExecutionJournalPath { get; init; } = "state/execution-journal.ndjson";
+    public string ActualStateSnapshotPath { get; init; } = "state/actual-state.json";
 }

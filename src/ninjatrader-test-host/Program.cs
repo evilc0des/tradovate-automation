@@ -25,6 +25,12 @@ if (string.Equals(mode, "--signal-intake-rust-e2e", StringComparison.OrdinalIgno
     return;
 }
 
+if (string.Equals(mode, "--phase8-smoke", StringComparison.OrdinalIgnoreCase))
+{
+    await RunPhase8SmokeAsync();
+    return;
+}
+
 await RunPublisherSmokeAsync();
 
 static async Task RunPublisherSmokeAsync()
@@ -226,6 +232,56 @@ static async Task RunSignalIntakeRustE2EAsync()
         }
 
     Console.WriteLine("[PHASE6] Signal intake Rust E2E completed.");
+}
+
+static Task RunPhase8SmokeAsync()
+{
+    var config = new BridgeConfig
+    {
+        LiveTradingEnabled = false,
+        DisarmOnStartup = false,
+        AllowedAccount = "SIM101",
+        AllowedInstruments = ["MES 06-26"],
+        AllowedSignalSources = ["test-host"],
+        ProcessedSignalStorePath = "state/test-phase8-processed-ids.txt",
+        SafetyStatePath = "state/test-phase8-safety-state.json",
+        ExecutionJournalPath = "state/test-phase8-execution-journal.ndjson",
+        ActualStateSnapshotPath = "state/test-phase8-actual-state.json",
+    };
+
+    var logger = new ConsoleBridgeLogger();
+    var bridge = new ExecutionBridge(config, logger);
+    bridge.Arm();
+
+    var signal = new TradeSignal
+    {
+        MessageType = "TradeSignal",
+        Version = "v1",
+        Timestamp = DateTimeOffset.UtcNow,
+        SourceId = "test-host",
+        CorrelationId = Guid.NewGuid().ToString("N"),
+        SignalId = Guid.NewGuid().ToString("N"),
+        StrategyId = "phase8-smoke",
+        Account = "SIM101",
+        Instrument = "MES 06-26",
+        Side = "Buy",
+        Quantity = 1,
+        OrderType = "Market",
+        Reason = "phase8 lifecycle",
+    };
+
+    var ack = bridge.HandleSignal(signal);
+    Console.WriteLine($"[PHASE8-ACK] {JsonSerializer.Serialize(ack)}");
+
+    var orderId = bridge.LastOrderId ?? "SIM-UNKNOWN";
+    bridge.OnOrderPartiallyFilled(orderId, 1, "Partial fill simulated");
+    bridge.OnOrderFilled(orderId, 1, "Full fill simulated");
+    bridge.OnOrderCanceled(orderId, 1, "Cancel simulated after fill for journal coverage");
+    bridge.OnExecutionAmbiguity(orderId, "Connection dropped during execution callback stream");
+
+    Console.WriteLine($"[PHASE8] Wrote journal to {config.ExecutionJournalPath}");
+    Console.WriteLine($"[PHASE8] Wrote actual state to {config.ActualStateSnapshotPath}");
+    return Task.CompletedTask;
 }
 
 static async Task RunMarketDataCaptureServerAsync(int port, CancellationToken cancellationToken, string prefix)

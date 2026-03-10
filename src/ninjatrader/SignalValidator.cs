@@ -19,6 +19,40 @@ public sealed class SignalValidator
             return false;
         }
 
+        if (string.IsNullOrWhiteSpace(signal.CorrelationId))
+        {
+            reason = "Missing correlationId.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(signal.SourceId))
+        {
+            reason = "Missing sourceId.";
+            return false;
+        }
+
+        var allowedSource = config.AllowedSignalSources.Any(s =>
+            string.Equals(s, signal.SourceId, StringComparison.OrdinalIgnoreCase));
+        if (!allowedSource)
+        {
+            reason = "Signal source is not allowed.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(signal.StrategyId))
+        {
+            reason = "Missing strategyId.";
+            return false;
+        }
+
+        var validSide = string.Equals(signal.Side, "Buy", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(signal.Side, "Sell", StringComparison.OrdinalIgnoreCase);
+        if (!validSide)
+        {
+            reason = "Invalid side; expected Buy or Sell.";
+            return false;
+        }
+
         if (!string.Equals(signal.OrderType, "Market", StringComparison.OrdinalIgnoreCase))
         {
             reason = "Unsupported order type for v1.";

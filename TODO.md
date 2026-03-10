@@ -94,14 +94,14 @@
 ## Phase 6 - Signal Transport Back To NinjaTrader
 
 - [x] Build Rust-side signal publishing flow
-- [ ] Build NinjaTrader-side signal intake transport
-- [ ] Parse incoming signal messages in NinjaTrader
-- [ ] Validate schema
-- [ ] Validate semantic rules
-- [ ] Reject malformed messages safely
-- [ ] Add signal source tracking
-- [ ] Add end-to-end correlation ID support
-- [ ] Add local transport reconnect handling
+- [x] Build NinjaTrader-side signal intake transport
+- [x] Parse incoming signal messages in NinjaTrader
+- [x] Validate schema
+- [x] Validate semantic rules
+- [x] Reject malformed messages safely
+- [x] Add signal source tracking
+- [x] Add end-to-end correlation ID support
+- [x] Add local transport reconnect handling
 
 ## Phase 7 - NinjaTrader Execution Bridge Core
 

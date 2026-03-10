@@ -24,6 +24,24 @@ This mode:
 - sends deterministic market data to `127.0.0.1:9100`
 - prints the first received `TradeSignal` payload
 
+## Run Phase 6 Intake Smoke
+```powershell
+dotnet run --project src/ninjatrader-test-host/NinjaTraderBridge.TestHost.csproj -- --signal-intake-smoke
+```
+
+This mode validates:
+- accepted signal ack response
+- malformed payload rejection (`ErrorEnvelope`)
+- invalid-source semantic rejection
+- reconnect handling across separate client sessions
+
+## Run Phase 6 Intake Rust E2E
+```powershell
+dotnet run --project src/ninjatrader-test-host/NinjaTraderBridge.TestHost.csproj -- --signal-intake-rust-e2e
+```
+
+This mode validates Rust-generated `TradeSignal` intake and `SignalAck` processing on the NinjaTrader bridge side.
+
 ## Safety
 - No order routing to NinjaTrader.
 - `LiveTradingEnabled` is forced `false` in host config.

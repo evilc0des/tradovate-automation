@@ -71,3 +71,36 @@ public sealed class SignalAck
     [JsonPropertyName("detail")]
     public string Detail { get; set; } = string.Empty;
 }
+
+public sealed class ErrorEnvelope
+{
+    [JsonPropertyName("messageType")]
+    public string MessageType { get; set; } = "ErrorEnvelope";
+
+    [JsonPropertyName("version")]
+    public string Version { get; set; } = "v1";
+
+    [JsonPropertyName("timestamp")]
+    public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
+
+    [JsonPropertyName("sourceId")]
+    public string SourceId { get; set; } = "ninjatrader.bridge";
+
+    [JsonPropertyName("correlationId")]
+    public string CorrelationId { get; set; } = string.Empty;
+
+    [JsonPropertyName("code")]
+    public string Code { get; set; } = string.Empty;
+
+    [JsonPropertyName("severity")]
+    public string Severity { get; set; } = "Error";
+
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+
+    [JsonPropertyName("details")]
+    public string? Details { get; set; }
+
+    [JsonPropertyName("retryable")]
+    public bool Retryable { get; set; }
+}

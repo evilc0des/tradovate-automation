@@ -17,6 +17,7 @@ This folder contains the NinjaTrader-side execution and market-data publisher sc
 - `MarketDataPublisher.cs`
 - `NinjaTraderEventAdapter.cs`
 - `SimulationMarketDataFeed.cs`
+- `SignalIntakeTransport.cs`
 
 ## Publisher flow
 1. NinjaTrader callback data is mapped into event records via `NinjaTraderEventAdapter`.
@@ -28,3 +29,10 @@ This folder contains the NinjaTrader-side execution and market-data publisher sc
 ## Integration note
 Wire NinjaScript callbacks (quote/trade/bar/connection) to `NinjaTraderEventAdapter` methods.
 Use `SimulationMarketDataFeed` for simulation-safe test mode before live callback wiring.
+
+## Signal intake flow
+1. `SignalIntakeTransport` listens on the configured signal TCP endpoint.
+2. Inbound NDJSON lines are parsed into `TradeSignal`.
+3. Malformed payloads return `ErrorEnvelope`.
+4. Valid payloads route through `ExecutionBridge` and return `SignalAck`.
+5. Source IDs are tracked and logged on first sighting.

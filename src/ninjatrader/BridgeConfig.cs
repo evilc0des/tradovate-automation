@@ -14,4 +14,6 @@ public sealed class BridgeConfig
 
     public string AllowedAccount { get; init; } = "SIM101";
     public string[] AllowedInstruments { get; init; } = ["MES 06-26"];
+    public string[] AllowedSignalSources { get; init; } = ["rust.strategy"];
+    public int SignalReadTimeoutMs { get; init; } = 15000;
 }

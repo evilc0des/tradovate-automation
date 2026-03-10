@@ -13,6 +13,18 @@ if (string.Equals(mode, "--rust-e2e", StringComparison.OrdinalIgnoreCase))
     return;
 }
 
+if (string.Equals(mode, "--signal-intake-smoke", StringComparison.OrdinalIgnoreCase))
+{
+    await RunSignalIntakeSmokeAsync();
+    return;
+}
+
+if (string.Equals(mode, "--signal-intake-rust-e2e", StringComparison.OrdinalIgnoreCase))
+{
+    await RunSignalIntakeRustE2EAsync();
+    return;
+}
+
 await RunPublisherSmokeAsync();
 
 static async Task RunPublisherSmokeAsync()
@@ -27,6 +39,7 @@ static async Task RunPublisherSmokeAsync()
         DisarmOnStartup = false,
         AllowedAccount = "SIM101",
         AllowedInstruments = ["MES 06-26"],
+        AllowedSignalSources = ["test-host", "rust.strategy"],
     };
 
     using var cts = new CancellationTokenSource();
@@ -83,6 +96,136 @@ static async Task RunRustE2EAsync()
     {
         TryStopProcess(rustProcess);
     }
+}
+
+static async Task RunSignalIntakeSmokeAsync()
+{
+    var config = new BridgeConfig
+    {
+        SignalHost = "127.0.0.1",
+        SignalPort = 19101,
+        LiveTradingEnabled = false,
+        DisarmOnStartup = false,
+        AllowedAccount = "SIM101",
+        AllowedInstruments = ["MES 06-26"],
+        AllowedSignalSources = ["test-host", "rust.strategy"],
+        SignalReadTimeoutMs = 5000,
+    };
+
+        var logger = new ConsoleBridgeLogger();
+        var bridge = new ExecutionBridge(config);
+        bridge.Arm();
+
+        var intake = new SignalIntakeTransport(config, bridge, logger);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var intakeTask = intake.RunAsync(cts.Token);
+        await Task.Delay(250, cts.Token);
+
+        // First connection: valid signal should return SignalAck Accepted.
+        var validSignal = new TradeSignal
+        {
+            MessageType = "TradeSignal",
+            Version = "v1",
+            Timestamp = DateTimeOffset.UtcNow,
+            SourceId = "test-host",
+            CorrelationId = Guid.NewGuid().ToString("N"),
+            SignalId = Guid.NewGuid().ToString("N"),
+            StrategyId = "phase6-smoke",
+            Account = "SIM101",
+            Instrument = "MES 06-26",
+            Side = "Buy",
+            Quantity = 1,
+            OrderType = "Market",
+            Reason = "phase6 valid",
+        };
+
+        var ack1 = await SendSignalAndReadResponseAsync(config.SignalHost, config.SignalPort, JsonSerializer.Serialize(validSignal), cts.Token);
+        Console.WriteLine($"[PHASE6-ACK1] {ack1}");
+
+        // Same connection semantics over reconnect: malformed JSON should return ErrorEnvelope.
+        var malformed = "{\"messageType\":\"TradeSignal\", bad-json";
+        var err = await SendSignalAndReadResponseAsync(config.SignalHost, config.SignalPort, malformed, cts.Token);
+        Console.WriteLine($"[PHASE6-ERR] {err}");
+
+        // Reconnect with invalid semantic source to verify safe rejection.
+        var invalidSourceSignal = new TradeSignal
+        {
+            MessageType = "TradeSignal",
+            Version = "v1",
+            Timestamp = DateTimeOffset.UtcNow,
+            SourceId = "unknown-source",
+            CorrelationId = Guid.NewGuid().ToString("N"),
+            SignalId = Guid.NewGuid().ToString("N"),
+            StrategyId = "phase6-smoke",
+            Account = "SIM101",
+            Instrument = "MES 06-26",
+            Side = "Buy",
+            Quantity = 1,
+            OrderType = "Market",
+        };
+
+        var ack2 = await SendSignalAndReadResponseAsync(config.SignalHost, config.SignalPort, JsonSerializer.Serialize(invalidSourceSignal), cts.Token);
+        Console.WriteLine($"[PHASE6-ACK2] {ack2}");
+
+        cts.Cancel();
+        try
+        {
+            await intakeTask;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+    Console.WriteLine("[PHASE6] Signal intake smoke completed.");
+}
+
+static async Task RunSignalIntakeRustE2EAsync()
+{
+    var config = new BridgeConfig
+    {
+        MarketDataHost = "127.0.0.1",
+        MarketDataPort = 9100,
+        SignalHost = "127.0.0.1",
+        SignalPort = 9101,
+        LiveTradingEnabled = false,
+        DisarmOnStartup = false,
+        AllowedAccount = "SIM101",
+        AllowedInstruments = ["MES 06-26"],
+        AllowedSignalSources = ["rust.strategy"],
+        SignalReadTimeoutMs = 8000,
+    };
+
+        var logger = new ConsoleBridgeLogger();
+        var bridge = new ExecutionBridge(config);
+        bridge.Arm();
+        var intake = new SignalIntakeTransport(config, bridge, logger);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var intakeTask = intake.RunAsync(cts.Token);
+
+        var rustDir = LocateRustServiceDirectory();
+        using var rustProcess = StartRustService(rustDir, config.MarketDataPort, config.SignalPort, "MES 06-26");
+
+        try
+        {
+            await Task.Delay(2500, cts.Token);
+            await SendMarketDataBurstToRustAsync(config.MarketDataPort, "MES 06-26", cts.Token);
+            await Task.Delay(1500, cts.Token);
+        }
+        finally
+        {
+            TryStopProcess(rustProcess);
+            cts.Cancel();
+            try
+            {
+                await intakeTask;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+    Console.WriteLine("[PHASE6] Signal intake Rust E2E completed.");
 }
 
 static async Task RunMarketDataCaptureServerAsync(int port, CancellationToken cancellationToken, string prefix)
@@ -149,6 +292,19 @@ static async Task<string> RunSignalCaptureServerAsync(int signalPort, Cancellati
     throw new TimeoutException("No signal received from Rust service.");
 }
 
+static async Task<string> SendSignalAndReadResponseAsync(string host, int port, string ndjsonPayload, CancellationToken cancellationToken)
+{
+    using var client = new TcpClient();
+    await client.ConnectAsync(host, port, cancellationToken);
+    await using var stream = client.GetStream();
+    await using var writer = new StreamWriter(stream, new UTF8Encoding(false)) { NewLine = "\n", AutoFlush = true };
+    using var reader = new StreamReader(stream, Encoding.UTF8);
+
+    await writer.WriteLineAsync(ndjsonPayload);
+    var line = await reader.ReadLineAsync(cancellationToken);
+    return line ?? string.Empty;
+}
+
 static Process StartRustService(string rustDir, int marketDataPort, int signalPort, string instrument)
 {
     var startInfo = new ProcessStartInfo
@@ -208,7 +364,26 @@ static Process StartRustService(string rustDir, int marketDataPort, int signalPo
 static async Task SendMarketDataBurstToRustAsync(int marketDataPort, string instrument, CancellationToken cancellationToken)
 {
     using var client = new TcpClient();
-    await client.ConnectAsync(IPAddress.Loopback, marketDataPort, cancellationToken);
+
+    var connected = false;
+    for (var attempt = 1; attempt <= 30 && !connected; attempt++)
+    {
+        try
+        {
+            await client.ConnectAsync(IPAddress.Loopback, marketDataPort, cancellationToken);
+            connected = true;
+        }
+        catch (SocketException) when (attempt < 30)
+        {
+            await Task.Delay(250, cancellationToken);
+        }
+    }
+
+    if (!connected)
+    {
+        throw new TimeoutException($"Could not connect to Rust market-data endpoint on port {marketDataPort}.");
+    }
+
     await using var stream = client.GetStream();
     await using var writer = new StreamWriter(stream, new UTF8Encoding(false)) { NewLine = "\n", AutoFlush = true };
 

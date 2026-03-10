@@ -21,6 +21,7 @@
     <Compile Include="..\ninjatrader\MarketDataPublisher.cs" Link="Bridge\MarketDataPublisher.cs" />
     <Compile Include="..\ninjatrader\MarketDataTransport.cs" Link="Bridge\MarketDataTransport.cs" />
     <Compile Include="..\ninjatrader\NinjaTraderEventAdapter.cs" Link="Bridge\NinjaTraderEventAdapter.cs" />
+    <Compile Include="..\ninjatrader\SignalIntakeTransport.cs" Link="Bridge\SignalIntakeTransport.cs" />
     <Compile Include="..\ninjatrader\SimulationMarketDataFeed.cs" Link="Bridge\SimulationMarketDataFeed.cs" />
   </ItemGroup>
 </Project>

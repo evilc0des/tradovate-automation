@@ -51,16 +51,16 @@
 
 ## Phase 3 - NinjaTrader Market Data Publisher
 
-- [ ] Build NinjaTrader-side market data publishing module
-- [ ] Capture market data from NinjaTrader events
-- [ ] Normalize outgoing market data into internal DTOs
-- [ ] Publish tick/quote/bar data to local Rust service
-- [ ] Publish connection state changes
-- [ ] Publish instrument/session metadata if needed
-- [ ] Handle transport disconnects safely
-- [ ] Add throttling or coalescing where appropriate
-- [ ] Add logging for market data publisher lifecycle
-- [ ] Add simulation-safe test mode for publisher
+- [x] Build NinjaTrader-side market data publishing module
+- [x] Capture market data from NinjaTrader events
+- [x] Normalize outgoing market data into internal DTOs
+- [x] Publish tick/quote/bar data to local Rust service
+- [x] Publish connection state changes
+- [x] Publish instrument/session metadata if needed
+- [x] Handle transport disconnects safely
+- [x] Add throttling or coalescing where appropriate
+- [x] Add logging for market data publisher lifecycle
+- [x] Add simulation-safe test mode for publisher
 
 ## Phase 4 - Rust Strategy Service Foundation
 

@@ -53,6 +53,29 @@ This mode validates:
 - persisted journal output (`state/test-phase8-execution-journal.ndjson`)
 - persisted actual-state snapshot (`state/test-phase8-actual-state.json`)
 
+## Run Phase 9 Reconciliation Smoke
+```powershell
+dotnet run --project src/ninjatrader-test-host/NinjaTraderBridge.TestHost.csproj -- --phase9-smoke
+```
+
+This mode validates:
+- expected-state snapshot persistence
+- startup/reconnect reconciliation checks
+- mismatch detection and persisted reconciliation reports
+- safe-mode disarm on mismatch
+- explicit re-arming requirement and behavior
+
+## Run Phase 10 Persistence Smoke
+```powershell
+dotnet run --project src/ninjatrader-test-host/NinjaTraderBridge.TestHost.csproj -- --phase10-smoke
+```
+
+This mode validates:
+- startup disarm on corrupted persistence file
+- safe handling and logging of persistence corruption
+- explicit re-arm and continued operation
+- startup/shutdown marker persistence (`runtime-markers.ndjson`)
+
 ## Safety
 - No order routing to NinjaTrader.
 - `LiveTradingEnabled` is forced `false` in host config.

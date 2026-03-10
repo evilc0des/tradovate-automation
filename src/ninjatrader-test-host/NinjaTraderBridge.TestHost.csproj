@@ -15,7 +15,11 @@
     <Compile Include="..\ninjatrader\ExecutionJournal.cs" Link="Bridge\ExecutionJournal.cs" />
     <Compile Include="..\ninjatrader\Dtos.cs" Link="Bridge\Dtos.cs" />
     <Compile Include="..\ninjatrader\ExecutionBridge.cs" Link="Bridge\ExecutionBridge.cs" />
+    <Compile Include="..\ninjatrader\ExpectedStateSnapshotStore.cs" Link="Bridge\ExpectedStateSnapshotStore.cs" />
     <Compile Include="..\ninjatrader\OrderSubmissionGateway.cs" Link="Bridge\OrderSubmissionGateway.cs" />
+    <Compile Include="..\ninjatrader\PersistenceHealthMonitor.cs" Link="Bridge\PersistenceHealthMonitor.cs" />
+    <Compile Include="..\ninjatrader\ReconciliationEngine.cs" Link="Bridge\ReconciliationEngine.cs" />
+    <Compile Include="..\ninjatrader\RuntimeMarkersStore.cs" Link="Bridge\RuntimeMarkersStore.cs" />
     <Compile Include="..\ninjatrader\RiskEngine.cs" Link="Bridge\RiskEngine.cs" />
     <Compile Include="..\ninjatrader\SafetyStateManager.cs" Link="Bridge\SafetyStateManager.cs" />
     <Compile Include="..\ninjatrader\SignalValidator.cs" Link="Bridge\SignalValidator.cs" />

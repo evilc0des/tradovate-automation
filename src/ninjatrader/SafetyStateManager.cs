@@ -8,14 +8,16 @@ public sealed class SafetyStateManager
 {
     private readonly string _statePath;
     private readonly IBridgeLogger _logger;
+    private readonly PersistenceHealthMonitor _health;
 
     public bool IsDisarmed { get; private set; }
     public string? LastReason { get; private set; }
 
-    public SafetyStateManager(string statePath, bool disarmOnStartup, IBridgeLogger logger)
+    public SafetyStateManager(string statePath, bool disarmOnStartup, IBridgeLogger logger, PersistenceHealthMonitor health)
     {
         _statePath = Path.GetFullPath(statePath);
         _logger = logger;
+        _health = health;
         IsDisarmed = disarmOnStartup;
         Load();
         Persist();
@@ -45,9 +47,16 @@ public sealed class SafetyStateManager
             }
 
             var json = File.ReadAllText(_statePath);
-            var snapshot = JsonSerializer.Deserialize<SafetyStateSnapshot>(json);
+            var snapshot = JsonSerializer.Deserialize<SafetyStateSnapshot>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+            });
             if (snapshot is null)
             {
+                if (!string.IsNullOrWhiteSpace(json))
+                {
+                    _health.ReportCritical("SafetyState", _statePath, "Could not deserialize snapshot");
+                }
                 return;
             }
 
@@ -57,6 +66,7 @@ public sealed class SafetyStateManager
         }
         catch (Exception ex)
         {
+            _health.ReportCritical("SafetyState", _statePath, ex.Message);
             IsDisarmed = true;
             LastReason = "Safety state load failed";
             _logger.Error("Failed to load safety state; forcing disarmed mode.", ex);

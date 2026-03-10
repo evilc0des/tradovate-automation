@@ -9,13 +9,15 @@ public sealed class ActualStateSnapshotStore
 {
     private readonly string _snapshotPath;
     private readonly IBridgeLogger _logger;
+    private readonly PersistenceHealthMonitor _health;
 
     private readonly Dictionary<string, OrderStateSnapshot> _orders = new(StringComparer.Ordinal);
 
-    public ActualStateSnapshotStore(string snapshotPath, IBridgeLogger logger)
+    public ActualStateSnapshotStore(string snapshotPath, IBridgeLogger logger, PersistenceHealthMonitor health)
     {
         _snapshotPath = Path.GetFullPath(snapshotPath);
         _logger = logger;
+        _health = health;
         Load();
     }
 
@@ -23,6 +25,15 @@ public sealed class ActualStateSnapshotStore
     {
         _orders[snapshot.OrderId] = snapshot;
         Persist();
+    }
+
+    public ActualStateSnapshot GetSnapshot()
+    {
+        return new ActualStateSnapshot
+        {
+            UpdatedUtc = DateTimeOffset.UtcNow,
+            Orders = [.. _orders.Values],
+        };
     }
 
     private void Load()
@@ -35,9 +46,16 @@ public sealed class ActualStateSnapshotStore
             }
 
             var json = File.ReadAllText(_snapshotPath);
-            var state = JsonSerializer.Deserialize<ActualStateSnapshot>(json);
+            var state = JsonSerializer.Deserialize<ActualStateSnapshot>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+            });
             if (state?.Orders is null)
             {
+                if (!string.IsNullOrWhiteSpace(json))
+                {
+                    _health.ReportCritical("ActualState", _snapshotPath, "Could not deserialize snapshot");
+                }
                 return;
             }
 
@@ -50,6 +68,7 @@ public sealed class ActualStateSnapshotStore
         }
         catch (Exception ex)
         {
+            _health.ReportCritical("ActualState", _snapshotPath, ex.Message);
             _logger.Error("Failed to load actual-state snapshot store.", ex);
         }
     }

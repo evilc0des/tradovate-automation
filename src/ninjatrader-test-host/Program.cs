@@ -31,6 +31,18 @@ if (string.Equals(mode, "--phase8-smoke", StringComparison.OrdinalIgnoreCase))
     return;
 }
 
+if (string.Equals(mode, "--phase9-smoke", StringComparison.OrdinalIgnoreCase))
+{
+    await RunPhase9SmokeAsync();
+    return;
+}
+
+if (string.Equals(mode, "--phase10-smoke", StringComparison.OrdinalIgnoreCase))
+{
+    await RunPhase10SmokeAsync();
+    return;
+}
+
 await RunPublisherSmokeAsync();
 
 static async Task RunPublisherSmokeAsync()
@@ -282,6 +294,149 @@ static Task RunPhase8SmokeAsync()
     Console.WriteLine($"[PHASE8] Wrote journal to {config.ExecutionJournalPath}");
     Console.WriteLine($"[PHASE8] Wrote actual state to {config.ActualStateSnapshotPath}");
     return Task.CompletedTask;
+}
+
+static async Task RunPhase9SmokeAsync()
+{
+    var baseStateDir = Path.Combine("state", "test-phase9");
+    Directory.CreateDirectory(baseStateDir);
+
+    var config = new BridgeConfig
+    {
+        LiveTradingEnabled = false,
+        DisarmOnStartup = false,
+        AllowedAccount = "SIM101",
+        AllowedInstruments = ["MES 06-26"],
+        AllowedSignalSources = ["test-host"],
+        ProcessedSignalStorePath = Path.Combine(baseStateDir, "processed-ids.txt"),
+        SafetyStatePath = Path.Combine(baseStateDir, "safety-state.json"),
+        ExecutionJournalPath = Path.Combine(baseStateDir, "execution-journal.ndjson"),
+        ActualStateSnapshotPath = Path.Combine(baseStateDir, "actual-state.json"),
+        ExpectedStateSnapshotPath = Path.Combine(baseStateDir, "expected-state.json"),
+        ReconciliationReportPath = Path.Combine(baseStateDir, "reconciliation-report.json"),
+    };
+
+    var logger = new ConsoleBridgeLogger();
+
+    // Bridge #1 writes expected+actual state from a normal accepted signal.
+    var bridge1 = new ExecutionBridge(config, logger);
+    bridge1.Arm();
+    var signal = new TradeSignal
+    {
+        MessageType = "TradeSignal",
+        Version = "v1",
+        Timestamp = DateTimeOffset.UtcNow,
+        SourceId = "test-host",
+        CorrelationId = Guid.NewGuid().ToString("N"),
+        SignalId = Guid.NewGuid().ToString("N"),
+        StrategyId = "phase9-smoke",
+        Account = "SIM101",
+        Instrument = "MES 06-26",
+        Side = "Buy",
+        Quantity = 1,
+        OrderType = "Market",
+    };
+
+    var ack = bridge1.HandleSignal(signal);
+    Console.WriteLine($"[PHASE9-ACK] {JsonSerializer.Serialize(ack)}");
+
+    // Force startup mismatch by deleting actual snapshot before bridge restart.
+    if (File.Exists(config.ActualStateSnapshotPath))
+    {
+        File.Delete(config.ActualStateSnapshotPath);
+    }
+
+    var bridge2 = new ExecutionBridge(config, logger);
+    bridge2.Arm();
+    var startupReport = bridge2.RunStartupRecoveryCheck();
+    Console.WriteLine($"[PHASE9-STARTUP] match={startupReport.IsMatch} mismatches={startupReport.Mismatches.Count} disarmed={bridge2.IsDisarmed}");
+
+    // Explicit re-arm path after mismatch.
+    bridge2.Arm();
+    Console.WriteLine($"[PHASE9-REARM] disarmed={bridge2.IsDisarmed}");
+
+    // Reconnect check should also run and report current state.
+    var reconnectReport = bridge2.RunReconnectRecoveryCheck();
+    Console.WriteLine($"[PHASE9-RECONNECT] match={reconnectReport.IsMatch} mismatches={reconnectReport.Mismatches.Count} disarmed={bridge2.IsDisarmed}");
+
+    if (File.Exists(config.ReconciliationReportPath))
+    {
+        var reportJson = await File.ReadAllTextAsync(config.ReconciliationReportPath);
+        Console.WriteLine($"[PHASE9-REPORT] {reportJson}");
+    }
+}
+
+static async Task RunPhase10SmokeAsync()
+{
+    var baseStateDir = Path.Combine("state", "test-phase10");
+    Directory.CreateDirectory(baseStateDir);
+
+    var config = new BridgeConfig
+    {
+        LiveTradingEnabled = false,
+        DisarmOnStartup = false,
+        AllowedAccount = "SIM101",
+        AllowedInstruments = ["MES 06-26"],
+        AllowedSignalSources = ["test-host"],
+        ProcessedSignalStorePath = Path.Combine(baseStateDir, "processed-ids.txt"),
+        SafetyStatePath = Path.Combine(baseStateDir, "safety-state.json"),
+        ExecutionJournalPath = Path.Combine(baseStateDir, "execution-journal.ndjson"),
+        ActualStateSnapshotPath = Path.Combine(baseStateDir, "actual-state.json"),
+        ExpectedStateSnapshotPath = Path.Combine(baseStateDir, "expected-state.json"),
+        ReconciliationReportPath = Path.Combine(baseStateDir, "reconciliation-report.json"),
+        RuntimeMarkersPath = Path.Combine(baseStateDir, "runtime-markers.ndjson"),
+    };
+
+    var logger = new ConsoleBridgeLogger();
+
+    // Seed corruption in persistence file to verify fail-closed startup.
+    await File.WriteAllTextAsync(config.SafetyStatePath, "{ bad-json");
+
+    var bridge = new ExecutionBridge(config, logger);
+    Console.WriteLine($"[PHASE10-START] disarmed={bridge.IsDisarmed}");
+
+    var signal = new TradeSignal
+    {
+        MessageType = "TradeSignal",
+        Version = "v1",
+        Timestamp = DateTimeOffset.UtcNow,
+        SourceId = "test-host",
+        CorrelationId = Guid.NewGuid().ToString("N"),
+        SignalId = Guid.NewGuid().ToString("N"),
+        StrategyId = "phase10-smoke",
+        Account = "SIM101",
+        Instrument = "MES 06-26",
+        Side = "Buy",
+        Quantity = 1,
+        OrderType = "Market",
+    };
+
+    var ackDisarmed = bridge.HandleSignal(signal);
+    Console.WriteLine($"[PHASE10-ACK-DISARMED] {JsonSerializer.Serialize(ackDisarmed)}");
+
+    // Explicit re-arm after operator intervention.
+    bridge.Arm();
+    var ackArmed = bridge.HandleSignal(new TradeSignal
+    {
+        MessageType = "TradeSignal",
+        Version = "v1",
+        Timestamp = DateTimeOffset.UtcNow,
+        SourceId = "test-host",
+        CorrelationId = Guid.NewGuid().ToString("N"),
+        SignalId = Guid.NewGuid().ToString("N"),
+        StrategyId = "phase10-smoke",
+        Account = "SIM101",
+        Instrument = "MES 06-26",
+        Side = "Buy",
+        Quantity = 1,
+        OrderType = "Market",
+    });
+    Console.WriteLine($"[PHASE10-ACK-ARMED] {JsonSerializer.Serialize(ackArmed)}");
+
+    bridge.Shutdown();
+
+    var markerLines = await File.ReadAllLinesAsync(config.RuntimeMarkersPath);
+    Console.WriteLine($"[PHASE10-MARKERS] count={markerLines.Length}");
 }
 
 static async Task RunMarketDataCaptureServerAsync(int port, CancellationToken cancellationToken, string prefix)

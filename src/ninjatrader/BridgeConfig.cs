@@ -22,4 +22,7 @@ public sealed class BridgeConfig
     public string SafetyStatePath { get; init; } = "state/safety-state.json";
     public string ExecutionJournalPath { get; init; } = "state/execution-journal.ndjson";
     public string ActualStateSnapshotPath { get; init; } = "state/actual-state.json";
+    public string ExpectedStateSnapshotPath { get; init; } = "state/expected-state.json";
+    public string ReconciliationReportPath { get; init; } = "state/reconciliation-report.json";
+    public string RuntimeMarkersPath { get; init; } = "state/runtime-markers.ndjson";
 }

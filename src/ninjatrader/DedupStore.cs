@@ -9,11 +9,13 @@ public sealed class DedupStore
     private readonly HashSet<string> _processedSignalIds = new(StringComparer.Ordinal);
     private readonly string _storePath;
     private readonly IBridgeLogger _logger;
+    private readonly PersistenceHealthMonitor _health;
 
-    public DedupStore(string storePath, IBridgeLogger logger)
+    public DedupStore(string storePath, IBridgeLogger logger, PersistenceHealthMonitor health)
     {
         _storePath = Path.GetFullPath(storePath);
         _logger = logger;
+        _health = health;
         Load();
     }
 
@@ -52,6 +54,7 @@ public sealed class DedupStore
         }
         catch (Exception ex)
         {
+            _health.ReportCritical("DedupStore", _storePath, ex.Message);
             _logger.Error("Failed to load processed signal ID store.", ex);
         }
     }

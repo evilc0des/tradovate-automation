@@ -136,28 +136,28 @@
 
 ## Phase 9 - Reconciliation and Recovery
 
-- [ ] Build expected-state models
-- [ ] Build actual-state models
-- [ ] Compare expected positions vs actual positions
-- [ ] Compare expected working orders vs actual working orders
-- [ ] Detect ambiguous post-submit states
-- [ ] Detect startup mismatches
-- [ ] Detect reconnect mismatches
-- [ ] Generate reconciliation reports
-- [ ] Transition to safe mode on mismatch
-- [ ] Add startup recovery flow
-- [ ] Add reconnect recovery flow
-- [ ] Require explicit re-arming when needed
+- [x] Build expected-state models
+- [x] Build actual-state models
+- [x] Compare expected positions vs actual positions
+- [x] Compare expected working orders vs actual working orders
+- [x] Detect ambiguous post-submit states
+- [x] Detect startup mismatches
+- [x] Detect reconnect mismatches
+- [x] Generate reconciliation reports
+- [x] Transition to safe mode on mismatch
+- [x] Add startup recovery flow
+- [x] Add reconnect recovery flow
+- [x] Require explicit re-arming when needed
 
 ## Phase 10 - Persistence
 
-- [ ] Persist processed signal IDs
-- [ ] Persist safety state snapshot
-- [ ] Persist expected position snapshot
-- [ ] Persist execution journal
-- [ ] Persist startup/shutdown markers
-- [ ] Handle corrupted persistence files safely
-- [ ] Start disarmed on critical persistence corruption
+- [x] Persist processed signal IDs
+- [x] Persist safety state snapshot
+- [x] Persist expected position snapshot
+- [x] Persist execution journal
+- [x] Persist startup/shutdown markers
+- [x] Handle corrupted persistence files safely
+- [x] Start disarmed on critical persistence corruption
 
 ## Phase 11 - Transport Hardening
 

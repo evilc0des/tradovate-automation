@@ -156,7 +156,7 @@ public sealed class ReconciliationReport
     public DateTimeOffset Timestamp { get; init; }
     public string Trigger { get; init; } = string.Empty;
     public bool IsMatch { get; init; }
-    public List<ReconciliationMismatch> Mismatches { get; init; } = [];
+    public List<ReconciliationMismatch> Mismatches { get; init; } = new List<ReconciliationMismatch>();
 }
 
 public sealed class ReconciliationMismatch

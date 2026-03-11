@@ -3,6 +3,13 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct InboundEnvelope {
+    pub message_type: String,
+    pub version: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MarketDataMessage {
     pub message_type: String,
     pub version: String,
@@ -15,6 +22,30 @@ pub struct MarketDataMessage {
     pub bid: Option<f64>,
     pub ask: Option<f64>,
     pub last_size: Option<u64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QuoteUpdateMessage {
+    pub version: String,
+    pub timestamp: DateTime<Utc>,
+    pub source_id: String,
+    pub correlation_id: String,
+    pub instrument: String,
+    pub bid: f64,
+    pub ask: f64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TradePrintMessage {
+    pub version: String,
+    pub timestamp: DateTime<Utc>,
+    pub source_id: String,
+    pub correlation_id: String,
+    pub instrument: String,
+    pub price: f64,
+    pub size: u64,
 }
 
 #[derive(Debug, Serialize)]

@@ -32,7 +32,7 @@ public sealed class ActualStateSnapshotStore
         return new ActualStateSnapshot
         {
             UpdatedUtc = DateTimeOffset.UtcNow,
-            Orders = [.. _orders.Values],
+            Orders = new List<OrderStateSnapshot>(_orders.Values),
         };
     }
 
@@ -86,7 +86,7 @@ public sealed class ActualStateSnapshotStore
             var state = new ActualStateSnapshot
             {
                 UpdatedUtc = DateTimeOffset.UtcNow,
-                Orders = [.. _orders.Values],
+                Orders = new List<OrderStateSnapshot>(_orders.Values),
             };
 
             var json = JsonSerializer.Serialize(state, new JsonSerializerOptions
@@ -106,7 +106,7 @@ public sealed class ActualStateSnapshotStore
 public sealed class ActualStateSnapshot
 {
     public DateTimeOffset UpdatedUtc { get; init; }
-    public List<OrderStateSnapshot> Orders { get; init; } = [];
+    public List<OrderStateSnapshot> Orders { get; init; } = new List<OrderStateSnapshot>();
 }
 
 public sealed class OrderStateSnapshot

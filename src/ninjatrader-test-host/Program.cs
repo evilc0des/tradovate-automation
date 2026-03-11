@@ -43,6 +43,12 @@ if (string.Equals(mode, "--phase10-smoke", StringComparison.OrdinalIgnoreCase))
     return;
 }
 
+if (string.Equals(mode, "--phase15-smoke", StringComparison.OrdinalIgnoreCase))
+{
+    await RunPhase15SmokeAsync();
+    return;
+}
+
 await RunPublisherSmokeAsync();
 
 static async Task RunPublisherSmokeAsync()
@@ -68,7 +74,7 @@ static async Task RunPublisherSmokeAsync()
     var marketDataServerTask = RunMarketDataCaptureServerAsync(config.MarketDataPort, cts.Token, "[FRAME]");
     await Task.Delay(150, cts.Token);
 
-    await using var transport = new NdjsonTcpMarketDataTransport(config, logger);
+    using var transport = new NdjsonTcpMarketDataTransport(config, logger);
     var publisher = new MarketDataPublisher(config, transport, logger);
     var feed = new SimulationMarketDataFeed(publisher, "MES 06-26");
 
@@ -437,6 +443,91 @@ static async Task RunPhase10SmokeAsync()
 
     var markerLines = await File.ReadAllLinesAsync(config.RuntimeMarkersPath);
     Console.WriteLine($"[PHASE10-MARKERS] count={markerLines.Length}");
+}
+
+static async Task RunPhase15SmokeAsync()
+{
+    var baseStateDir = Path.Combine("state", "test-phase15");
+    Directory.CreateDirectory(baseStateDir);
+
+    var config = new BridgeConfig
+    {
+        MarketDataHost = "127.0.0.1",
+        MarketDataPort = 19200,
+        SignalHost = "127.0.0.1",
+        SignalPort = 19201,
+        LiveTradingEnabled = false,
+        DisarmOnStartup = false,
+        AllowedAccount = "SIM101",
+        AllowedInstruments = ["MES 06-26"],
+        AllowedSignalSources = ["rust.strategy"],
+        ProcessedSignalStorePath = Path.Combine(baseStateDir, "processed-ids.txt"),
+        SafetyStatePath = Path.Combine(baseStateDir, "safety-state.json"),
+        ExecutionJournalPath = Path.Combine(baseStateDir, "execution-journal.ndjson"),
+        ActualStateSnapshotPath = Path.Combine(baseStateDir, "actual-state.json"),
+        ExpectedStateSnapshotPath = Path.Combine(baseStateDir, "expected-state.json"),
+        ReconciliationReportPath = Path.Combine(baseStateDir, "reconciliation-report.json"),
+        RuntimeMarkersPath = Path.Combine(baseStateDir, "runtime-markers.ndjson"),
+        AmbiguousSignalStorePath = Path.Combine(baseStateDir, "ambiguous-signals.txt"),
+    };
+
+    var logger = new ConsoleBridgeLogger();
+    var bridge = new ExecutionBridge(config, logger);
+    bridge.Arm();
+
+    var intake = new SignalIntakeTransport(config, bridge, logger);
+    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    var intakeTask = intake.RunAsync(cts.Token);
+
+    var rustDir = LocateRustServiceDirectory();
+    using var rustProcess = StartRustService(rustDir, config.MarketDataPort, config.SignalPort, "MES 06-26");
+
+    try
+    {
+        await Task.Delay(2500, cts.Token);
+
+        // Publish a minimal normalized stream from C# side to Rust and trigger deterministic signal.
+        await SendMarketDataBurstToRustAsync(config.MarketDataPort, "MES 06-26", cts.Token);
+
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+        while (bridge.LastAcceptedSignal is null && DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(150, cts.Token);
+        }
+
+        var received = bridge.LastAcceptedSignal is not null;
+        var fromRust = string.Equals(bridge.LastAcceptedSignal?.SourceId, "rust.strategy", StringComparison.OrdinalIgnoreCase);
+        var submitted = !string.IsNullOrWhiteSpace(bridge.LastOrderId);
+
+        var hasJournal = File.Exists(config.ExecutionJournalPath) && new FileInfo(config.ExecutionJournalPath).Length > 0;
+        var hasExpected = File.Exists(config.ExpectedStateSnapshotPath);
+        var hasActual = File.Exists(config.ActualStateSnapshotPath);
+
+        Console.WriteLine($"[PHASE15] published_market_data_stream=True");
+        Console.WriteLine($"[PHASE15] rust_signal_received={received}");
+        Console.WriteLine($"[PHASE15] rust_signal_source_valid={fromRust}");
+        Console.WriteLine($"[PHASE15] simulation_order_submitted={submitted}");
+        Console.WriteLine($"[PHASE15] persistence_execution_journal={hasJournal}");
+        Console.WriteLine($"[PHASE15] persistence_expected_state={hasExpected}");
+        Console.WriteLine($"[PHASE15] persistence_actual_state={hasActual}");
+
+        if (!received || !fromRust || !submitted || !hasJournal || !hasExpected || !hasActual)
+        {
+            throw new InvalidOperationException("Phase 15 smoke did not satisfy all vertical-slice checks.");
+        }
+    }
+    finally
+    {
+        TryStopProcess(rustProcess);
+        cts.Cancel();
+        try
+        {
+            await intakeTask;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
 }
 
 static async Task RunMarketDataCaptureServerAsync(int port, CancellationToken cancellationToken, string prefix)

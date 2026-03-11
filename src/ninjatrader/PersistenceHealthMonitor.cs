@@ -5,7 +5,7 @@ namespace NinjaTraderTradovateBridge;
 
 public sealed class PersistenceHealthMonitor
 {
-    private readonly List<string> _criticalIssues = [];
+    private readonly List<string> _criticalIssues = new List<string>();
 
     public bool HasCriticalIssues => _criticalIssues.Count > 0;
 

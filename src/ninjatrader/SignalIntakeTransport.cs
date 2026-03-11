@@ -43,7 +43,14 @@ public sealed class SignalIntakeTransport
                 TcpClient client;
                 try
                 {
-                    client = await listener.AcceptTcpClientAsync(cancellationToken).ConfigureAwait(false);
+                    var acceptTask = listener.AcceptTcpClientAsync();
+                    var completed = await Task.WhenAny(acceptTask, Task.Delay(250, cancellationToken)).ConfigureAwait(false);
+                    if (completed != acceptTask)
+                    {
+                        continue;
+                    }
+
+                    client = acceptTask.Result;
                 }
                 catch (OperationCanceledException)
                 {
@@ -66,19 +73,29 @@ public sealed class SignalIntakeTransport
 
         try
         {
-            await using var stream = client.GetStream();
+            using var stream = client.GetStream();
             using var reader = new StreamReader(stream, Encoding.UTF8);
-            await using var writer = new StreamWriter(stream, new UTF8Encoding(false)) { NewLine = "\n", AutoFlush = true };
+            using var writer = new StreamWriter(stream, new UTF8Encoding(false)) { NewLine = "\n", AutoFlush = true };
 
             while (!cancellationToken.IsCancellationRequested)
             {
-                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                timeoutCts.CancelAfter(_config.SignalReadTimeoutMs);
-
                 string? line;
                 try
                 {
-                    line = await reader.ReadLineAsync(timeoutCts.Token).ConfigureAwait(false);
+                    var readTask = reader.ReadLineAsync();
+                    var completed = await Task.WhenAny(readTask, Task.Delay(_config.SignalReadTimeoutMs, cancellationToken)).ConfigureAwait(false);
+                    if (completed != readTask)
+                    {
+                        if (cancellationToken.IsCancellationRequested)
+                        {
+                            break;
+                        }
+
+                        _logger.Warn("Signal client timed out waiting for data; closing connection.");
+                        break;
+                    }
+
+                    line = readTask.Result;
                 }
                 catch (OperationCanceledException)
                 {
@@ -123,7 +140,7 @@ public sealed class SignalIntakeTransport
                 {
                     signal = JsonSerializer.Deserialize<TradeSignal>(trimmed, _serializerOptions);
                 }
-                catch (JsonException ex)
+                catch (Exception ex)
                 {
                     _logger.Warn($"Malformed signal JSON: {ex.Message}");
                     await WriteErrorAsync(writer, correlationId, "SIG_MALFORMED", "Malformed signal JSON", ex.Message, retryable: false).ConfigureAwait(false);
@@ -153,6 +170,18 @@ public sealed class SignalIntakeTransport
                 _logger.Info($"Signal processed source={signal.SourceId} signalId={ack.SignalId} status={ack.Status}");
             }
         }
+        catch (IOException)
+        {
+            _logger.Info("Signal intake client disconnected.");
+        }
+        catch (AggregateException ex) when (ex.InnerException is IOException || ex.InnerException is SocketException)
+        {
+            _logger.Info("Signal intake client disconnected.");
+        }
+        catch (ObjectDisposedException)
+        {
+            _logger.Info("Signal intake client stream disposed.");
+        }
         catch (Exception ex)
         {
             _logger.Error("Signal intake client handler crashed.", ex);
@@ -176,10 +205,10 @@ public sealed class SignalIntakeTransport
     {
         try
         {
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty("correlationId", out var value) && value.ValueKind == JsonValueKind.String)
+            var payload = JsonSerializer.Deserialize<Dictionary<string, object>>(json);
+            if (payload is not null && payload.TryGetValue("correlationId", out var value) && value is not null)
             {
-                return value.GetString();
+                return value.ToString();
             }
         }
         catch
@@ -194,10 +223,10 @@ public sealed class SignalIntakeTransport
     {
         try
         {
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty("signalId", out var value) && value.ValueKind == JsonValueKind.String)
+            var payload = JsonSerializer.Deserialize<Dictionary<string, object>>(json);
+            if (payload is not null && payload.TryGetValue("signalId", out var value) && value is not null)
             {
-                return value.GetString();
+                return value.ToString();
             }
         }
         catch

@@ -11,17 +11,19 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
 use tracing::debug;
 use tracing::{error, info, warn};
+use tracing_subscriber::EnvFilter;
 
 use crate::config::AppConfig;
 use crate::errors::{log_error, log_message, ErrorKind};
-use crate::models::MarketDataMessage;
+use crate::models::{InboundEnvelope, MarketDataMessage, QuoteUpdateMessage, TradePrintMessage};
 use crate::state::MarketState;
 use crate::strategy::DeterministicStrategy;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
     tracing_subscriber::fmt()
-        .with_env_filter("info")
+        .with_env_filter(env_filter)
         .init();
 
     let cfg = AppConfig::from_env();
@@ -75,9 +77,8 @@ async fn main() -> Result<()> {
                         continue;
                     }
 
-                    let parsed = serde_json::from_str::<MarketDataMessage>(trimmed);
-                    let msg = match parsed {
-                        Ok(msg) => msg,
+                    let envelope = match serde_json::from_str::<InboundEnvelope>(trimmed) {
+                        Ok(env) => env,
                         Err(err) => {
                             warn!(error = %err, raw = trimmed, "invalid market data frame");
                             log_message(ErrorKind::Parse, "market_data_parse", trimmed);
@@ -85,9 +86,77 @@ async fn main() -> Result<()> {
                         }
                     };
 
-                    if msg.message_type != "MarketDataMessage" || msg.version != "v1" {
-                        warn!(message_type = %msg.message_type, version = %msg.version, "dropping unsupported envelope");
-                        log_message(ErrorKind::Protocol, "market_data_envelope", "unsupported messageType/version");
+                    if envelope.version != "v1" {
+                        warn!(message_type = %envelope.message_type, version = %envelope.version, "dropping unsupported envelope version");
+                        log_message(ErrorKind::Protocol, "market_data_envelope", "unsupported version");
+                        continue;
+                    }
+
+                    if envelope.message_type == "HeartbeatMessage" {
+                        debug!("heartbeat frame received");
+                        continue;
+                    }
+
+                    let msg = if envelope.message_type == "MarketDataMessage" {
+                        match serde_json::from_str::<MarketDataMessage>(trimmed) {
+                            Ok(msg) => msg,
+                            Err(err) => {
+                                warn!(error = %err, raw = trimmed, "invalid MarketDataMessage payload");
+                                log_message(ErrorKind::Parse, "market_data_parse", trimmed);
+                                continue;
+                            }
+                        }
+                    } else if envelope.message_type == "QuoteUpdateMessage" {
+                        match serde_json::from_str::<QuoteUpdateMessage>(trimmed) {
+                            Ok(quote) => MarketDataMessage {
+                                message_type: "MarketDataMessage".to_string(),
+                                version: quote.version,
+                                timestamp: quote.timestamp,
+                                source_id: quote.source_id,
+                                correlation_id: quote.correlation_id,
+                                instrument: quote.instrument,
+                                event_type: "QuoteUpdate".to_string(),
+                                last_price: None,
+                                bid: Some(quote.bid),
+                                ask: Some(quote.ask),
+                                last_size: None,
+                            },
+                            Err(err) => {
+                                warn!(error = %err, raw = trimmed, "invalid QuoteUpdateMessage payload");
+                                log_message(ErrorKind::Parse, "market_data_parse", trimmed);
+                                continue;
+                            }
+                        }
+                    } else if envelope.message_type == "TradePrintMessage" {
+                        match serde_json::from_str::<TradePrintMessage>(trimmed) {
+                            Ok(trade) => MarketDataMessage {
+                                message_type: "MarketDataMessage".to_string(),
+                                version: trade.version,
+                                timestamp: trade.timestamp,
+                                source_id: trade.source_id,
+                                correlation_id: trade.correlation_id,
+                                instrument: trade.instrument,
+                                event_type: "TradePrint".to_string(),
+                                last_price: Some(trade.price),
+                                bid: None,
+                                ask: None,
+                                last_size: Some(trade.size),
+                            },
+                            Err(err) => {
+                                warn!(error = %err, raw = trimmed, "invalid TradePrintMessage payload");
+                                log_message(ErrorKind::Parse, "market_data_parse", trimmed);
+                                continue;
+                            }
+                        }
+                    } else {
+                        warn!(message_type = %envelope.message_type, "dropping unsupported envelope type");
+                        log_message(ErrorKind::Protocol, "market_data_envelope", "unsupported messageType");
+                        continue;
+                    };
+
+                    if msg.version != "v1" {
+                        warn!(message_type = %msg.message_type, version = %msg.version, "dropping unsupported market data version");
+                        log_message(ErrorKind::Protocol, "market_data_envelope", "unsupported MarketDataMessage version");
                         continue;
                     }
 

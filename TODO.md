@@ -217,14 +217,14 @@
 
 ## Phase 15 - First Working Vertical Slice
 
-- [ ] NinjaTrader publishes one simple normalized market data stream
-- [ ] Rust service consumes the stream
-- [ ] Rust service computes a simple deterministic strategy rule
-- [ ] Rust service emits one normalized trade signal
-- [ ] NinjaTrader receives the signal
-- [ ] NinjaTrader validates and risk-checks the signal
-- [ ] NinjaTrader submits a simulation market order
-- [ ] NinjaTrader logs and persists the outcome
+- [x] NinjaTrader publishes one simple normalized market data stream
+- [x] Rust service consumes the stream
+- [x] Rust service computes a simple deterministic strategy rule
+- [x] Rust service emits one normalized trade signal
+- [x] NinjaTrader receives the signal
+- [x] NinjaTrader validates and risk-checks the signal
+- [x] NinjaTrader submits a simulation market order
+- [x] NinjaTrader logs and persists the outcome
 
 ## Phase 16 - Live Readiness Preparation
 

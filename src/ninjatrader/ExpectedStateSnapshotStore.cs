@@ -67,7 +67,7 @@ public sealed class ExpectedStateSnapshotStore
         return new ExpectedStateSnapshot
         {
             UpdatedUtc = DateTimeOffset.UtcNow,
-            Orders = [.. _orders.Values],
+            Orders = new List<ExpectedOrderSnapshot>(_orders.Values),
             ExpectedPositionsByInstrument = new Dictionary<string, int>(_expectedPositionsByInstrument, StringComparer.OrdinalIgnoreCase),
         };
     }
@@ -186,7 +186,7 @@ public sealed class ExpectedStateSnapshotStore
 public sealed class ExpectedStateSnapshot
 {
     public DateTimeOffset UpdatedUtc { get; init; }
-    public List<ExpectedOrderSnapshot> Orders { get; init; } = [];
+    public List<ExpectedOrderSnapshot> Orders { get; init; } = new List<ExpectedOrderSnapshot>();
     public Dictionary<string, int> ExpectedPositionsByInstrument { get; init; } = new(StringComparer.OrdinalIgnoreCase);
 }
 

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Threading.Channels;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -12,7 +11,9 @@ public sealed class MarketDataPublisher
     private readonly BridgeConfig _config;
     private readonly IBridgeLogger _logger;
     private readonly TimeSpan _quoteCoalesceInterval;
-    private readonly Channel<object> _outboundQueue;
+    private readonly Queue<object> _outboundQueue;
+    private readonly object _queueLock = new object();
+    private readonly SemaphoreSlim _queueSignal = new SemaphoreSlim(0);
     private readonly CancellationTokenSource _publisherCts = new();
     private readonly Task _pumpTask;
     private CancellationTokenSource? _heartbeatCts;
@@ -25,12 +26,7 @@ public sealed class MarketDataPublisher
         _transport = transport;
         _logger = logger;
         _quoteCoalesceInterval = quoteCoalesceInterval ?? TimeSpan.FromMilliseconds(100);
-        _outboundQueue = Channel.CreateBounded<object>(new BoundedChannelOptions(_config.MarketDataQueueCapacity)
-        {
-            SingleReader = true,
-            SingleWriter = false,
-            FullMode = BoundedChannelFullMode.DropOldest,
-        });
+        _outboundQueue = new Queue<object>(_config.MarketDataQueueCapacity);
         _pumpTask = Task.Run(() => PumpAsync(_publisherCts.Token));
     }
 
@@ -93,23 +89,52 @@ public sealed class MarketDataPublisher
 
     private async Task EnqueueCriticalAsync(object message, CancellationToken cancellationToken)
     {
-        await _outboundQueue.Writer.WriteAsync(message, cancellationToken).ConfigureAwait(false);
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var enqueued = false;
+            lock (_queueLock)
+            {
+                if (_outboundQueue.Count < _config.MarketDataQueueCapacity)
+                {
+                    _outboundQueue.Enqueue(message);
+                    enqueued = true;
+                }
+            }
+
+            if (enqueued)
+            {
+                _queueSignal.Release();
+                return;
+            }
+
+            await Task.Delay(5, cancellationToken).ConfigureAwait(false);
+        }
+
+        throw new OperationCanceledException("Critical market data enqueue was canceled.", cancellationToken);
     }
 
     private void TryEnqueue(object message, bool isNonCritical)
     {
-        if (_outboundQueue.Writer.TryWrite(message))
+        lock (_queueLock)
         {
+            if (_outboundQueue.Count >= _config.MarketDataQueueCapacity)
+            {
+                if (isNonCritical)
+                {
+                    _outboundQueue.Dequeue();
+                    _logger.Warn("Dropped oldest non-critical market data message due to bounded queue pressure.");
+                }
+                else
+                {
+                    _logger.Warn("Failed to enqueue critical market data message under queue pressure.");
+                    return;
+                }
+            }
+
+            _outboundQueue.Enqueue(message);
+            _queueSignal.Release();
             return;
         }
-
-        if (isNonCritical)
-        {
-            _logger.Warn("Dropped non-critical market data message due to bounded queue pressure.");
-            return;
-        }
-
-        _logger.Warn("Failed to enqueue critical market data message under queue pressure.");
     }
 
     private async Task PumpAsync(CancellationToken cancellationToken)
@@ -118,7 +143,21 @@ public sealed class MarketDataPublisher
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                var message = await _outboundQueue.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+                await _queueSignal.WaitAsync(cancellationToken).ConfigureAwait(false);
+                object? message = null;
+                lock (_queueLock)
+                {
+                    if (_outboundQueue.Count > 0)
+                    {
+                        message = _outboundQueue.Dequeue();
+                    }
+                }
+
+                if (message is null)
+                {
+                    continue;
+                }
+
                 await _transport.PublishAsync(message, cancellationToken).ConfigureAwait(false);
             }
         }

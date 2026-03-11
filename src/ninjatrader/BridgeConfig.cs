@@ -15,8 +15,8 @@ public sealed class BridgeConfig
     public string SessionEndUtc { get; init; } = "23:59";
 
     public string AllowedAccount { get; init; } = "SIM101";
-    public string[] AllowedInstruments { get; init; } = ["MES 06-26"];
-    public string[] AllowedSignalSources { get; init; } = ["rust.strategy"];
+    public string[] AllowedInstruments { get; init; } = new[] { "MES 06-26" };
+    public string[] AllowedSignalSources { get; init; } = new[] { "rust.strategy" };
     public int SignalReadTimeoutMs { get; init; } = 15000;
     public int MarketDataReconnectMaxAttempts { get; init; } = 5;
     public int MarketDataReconnectBackoffMs { get; init; } = 300;

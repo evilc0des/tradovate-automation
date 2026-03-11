@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace NinjaTraderTradovateBridge;
 
-public interface IMarketDataTransport : IAsyncDisposable
+public interface IMarketDataTransport : IDisposable
 {
     Task PublishAsync<T>(T message, CancellationToken cancellationToken) where T : class;
 }
@@ -42,7 +42,7 @@ public sealed class NdjsonTcpMarketDataTransport : IMarketDataTransport
         catch (Exception ex)
         {
             _logger.Warn("Market data publish failed; resetting transport connection.");
-            await ResetConnectionAsync().ConfigureAwait(false);
+            ResetConnection();
             _logger.Error("Market data transport error.", ex);
             throw;
         }
@@ -59,7 +59,7 @@ public sealed class NdjsonTcpMarketDataTransport : IMarketDataTransport
             return;
         }
 
-        await ResetConnectionAsync().ConfigureAwait(false);
+        ResetConnection();
 
         Exception? lastError = null;
         for (var attempt = 1; attempt <= _config.MarketDataReconnectMaxAttempts; attempt++)
@@ -68,7 +68,9 @@ public sealed class NdjsonTcpMarketDataTransport : IMarketDataTransport
             {
                 _client = new TcpClient();
                 _client.NoDelay = true;
-                await _client.ConnectAsync(_config.MarketDataHost, _config.MarketDataPort, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                await _client.ConnectAsync(_config.MarketDataHost, _config.MarketDataPort).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
                 _writer = new StreamWriter(_client.GetStream(), new UTF8Encoding(false))
                 {
                     AutoFlush = true,
@@ -82,7 +84,7 @@ public sealed class NdjsonTcpMarketDataTransport : IMarketDataTransport
             {
                 lastError = ex;
                 _logger.Warn($"Market data connect attempt {attempt}/{_config.MarketDataReconnectMaxAttempts} failed.");
-                await ResetConnectionAsync().ConfigureAwait(false);
+                ResetConnection();
                 if (attempt < _config.MarketDataReconnectMaxAttempts)
                 {
                     await Task.Delay(_config.MarketDataReconnectBackoffMs, cancellationToken).ConfigureAwait(false);
@@ -93,11 +95,11 @@ public sealed class NdjsonTcpMarketDataTransport : IMarketDataTransport
         throw new IOException("Unable to establish market data transport connection.", lastError);
     }
 
-    private async Task ResetConnectionAsync()
+    private void ResetConnection()
     {
         if (_writer is not null)
         {
-            await _writer.DisposeAsync().ConfigureAwait(false);
+            _writer.Dispose();
             _writer = null;
         }
 
@@ -105,9 +107,9 @@ public sealed class NdjsonTcpMarketDataTransport : IMarketDataTransport
         _client = null;
     }
 
-    public async ValueTask DisposeAsync()
+    public void Dispose()
     {
-        await ResetConnectionAsync().ConfigureAwait(false);
+        ResetConnection();
         _writeLock.Dispose();
     }
 }

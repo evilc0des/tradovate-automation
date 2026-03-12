@@ -173,11 +173,11 @@
 
 ## Phase 12 - Rust Strategy Extensibility
 
-- [ ] Add pluggable strategy trait/interface in Rust
-- [ ] Separate strategy logic from transport logic
-- [ ] Separate feature pipeline from signal output
-- [ ] Add support for multiple strategy modules later
-- [ ] Keep v1 running with one active strategy
+- [x] Add pluggable strategy trait/interface in Rust
+- [x] Separate strategy logic from transport logic
+- [x] Separate feature pipeline from signal output
+- [x] Add support for multiple strategy modules later
+- [x] Keep v1 running with one active strategy
 - [ ] Add deterministic replay mode for stored market data later
 
 ## Phase 13 - Observability

@@ -2,13 +2,61 @@ use std::collections::{HashMap, VecDeque};
 
 use chrono::{DateTime, Utc};
 
-#[derive(Clone, Debug, Default)]
+// ── Exponential Moving Average ────────────────────────────────────────────────
+
+#[derive(Clone, Debug)]
+pub struct Ema {
+    alpha: f64,
+    value: Option<f64>,
+}
+
+impl Ema {
+    pub fn new(period: u32) -> Self {
+        Self {
+            alpha: 2.0 / (period as f64 + 1.0),
+            value: None,
+        }
+    }
+
+    pub fn update(&mut self, price: f64) {
+        self.value = Some(match self.value {
+            None => price,
+            Some(prev) => prev + self.alpha * (price - prev),
+        });
+    }
+
+    pub fn value(&self) -> Option<f64> {
+        self.value
+    }
+}
+
+// ── InstrumentState ───────────────────────────────────────────────────────────
+
+#[derive(Clone, Debug)]
 pub struct InstrumentState {
     pub bid: Option<f64>,
     pub ask: Option<f64>,
     pub last: Option<f64>,
     pub rolling: RollingBars,
     pub session: SessionState,
+    /// 5-period EMA of last trade prices.
+    pub ema_fast: Ema,
+    /// 20-period EMA of last trade prices.
+    pub ema_slow: Ema,
+}
+
+impl Default for InstrumentState {
+    fn default() -> Self {
+        Self {
+            bid: None,
+            ask: None,
+            last: None,
+            rolling: RollingBars::default(),
+            session: SessionState::default(),
+            ema_fast: Ema::new(5),
+            ema_slow: Ema::new(20),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -75,6 +123,8 @@ impl MarketState {
         if let Some(value) = last {
             entry.last = Some(value);
             entry.rolling.push_close(value);
+            entry.ema_fast.update(value);
+            entry.ema_slow.update(value);
         }
 
         if entry.session.first_seen.is_none() {

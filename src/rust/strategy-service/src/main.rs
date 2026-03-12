@@ -1,3 +1,4 @@
+mod cli;
 mod config;
 mod errors;
 mod features;
@@ -7,17 +8,19 @@ mod strategy;
 mod transport;
 
 use anyhow::{Context, Result};
+use clap::Parser;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
 use tracing::debug;
 use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
 
+use crate::cli::Cli;
 use crate::config::AppConfig;
 use crate::errors::{log_error, log_message, ErrorKind};
 use crate::models::{InboundEnvelope, MarketDataMessage, QuoteUpdateMessage, TradePrintMessage};
 use crate::state::MarketState;
-use crate::strategy::DeterministicStrategy;
+use crate::strategy::build_strategy;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -26,20 +29,28 @@ async fn main() -> Result<()> {
         .with_env_filter(env_filter)
         .init();
 
-    let cfg = AppConfig::from_env();
+    let cfg = AppConfig::from_cli(Cli::parse());
     if let Err(err) = cfg.validate() {
         log_error(ErrorKind::Config, "config_validation", &err);
         return Err(err);
     }
 
-    info!(market_data_bind = %cfg.market_data_bind, signal_bind = %cfg.signal_bind, "starting strategy service");
+    info!(
+        market_data_bind = %cfg.market_data_bind,
+        signal_bind = %cfg.signal_bind,
+        strategy = %cfg.strategy_name,
+        force_trade_once = cfg.force_trade_once,
+        force_trade_side = %cfg.force_trade_side,
+        "starting strategy service"
+    );
 
     let listener = TcpListener::bind(&cfg.market_data_bind)
         .await
         .with_context(|| format!("failed to bind market data endpoint {}", cfg.market_data_bind))?;
 
     let mut market_state = MarketState::default();
-    let mut strategy = DeterministicStrategy::new(cfg.cooldown_ms);
+    let mut strategy = build_strategy(&cfg);
+    info!(strategy_id = %strategy.strategy_id(), "active strategy loaded");
 
     loop {
         tokio::select! {
@@ -170,7 +181,8 @@ async fn main() -> Result<()> {
 
                     market_state.update_quote(&msg.instrument, msg.bid, msg.ask, msg.last_price, msg.timestamp);
 
-                    if let Some(signal) = strategy.on_market_data(&cfg, &market_state, &msg) {
+                    let features = features::compute_features(&market_state, &msg.instrument);
+                    if let Some(signal) = strategy.on_market_data(&cfg, &msg, features.as_ref()) {
                         if let Err(err) = transport::send_signal(&cfg.signal_bind, &signal).await {
                             log_error(ErrorKind::Transport, "signal_dispatch", &err);
                             error!(error = %err, signal_id = %signal.signal_id, "failed to dispatch signal");

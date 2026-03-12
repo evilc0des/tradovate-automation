@@ -22,6 +22,13 @@ pub struct MarketDataMessage {
     pub bid: Option<f64>,
     pub ask: Option<f64>,
     pub last_size: Option<u64>,
+    /// Bar candle fields — populated only for `BarUpdate` events.
+    #[serde(default)]
+    pub bar_open: Option<f64>,
+    #[serde(default)]
+    pub bar_high: Option<f64>,
+    #[serde(default)]
+    pub bar_low: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -50,19 +57,20 @@ pub struct TradePrintMessage {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[allow(dead_code)] // open/high/low/volume/bar_time reserved for future strategies
 pub struct BarUpdateMessage {
     pub version: String,
     pub timestamp: DateTime<Utc>,
     pub source_id: String,
     pub correlation_id: String,
     pub instrument: String,
+    #[allow(dead_code)]
     pub bar_time: DateTime<Utc>,
     pub interval: Option<String>,
     pub open: f64,
     pub high: f64,
     pub low: f64,
     pub close: f64,
+    #[allow(dead_code)]
     pub volume: u64,
 }
 

@@ -68,6 +68,8 @@ pub enum StrategyArg {
     Deterministic,
     /// 5 / 20 EMA crossover trend-follow strategy.
     EmaMomentum,
+    /// Heikin Ashi reversal strategy — enters on two consecutive same-colour candles.
+    HeikinAshi,
 }
 
 impl StrategyArg {
@@ -76,6 +78,7 @@ impl StrategyArg {
         match self {
             StrategyArg::Deterministic => "deterministic",
             StrategyArg::EmaMomentum => "ema-momentum",
+            StrategyArg::HeikinAshi => "heikin-ashi",
         }
     }
 }

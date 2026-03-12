@@ -133,6 +133,9 @@ async fn main() -> Result<()> {
                                 bid: Some(quote.bid),
                                 ask: Some(quote.ask),
                                 last_size: None,
+                                bar_open: None,
+                                bar_high: None,
+                                bar_low: None,
                             }, false),
                             Err(err) => {
                                 warn!(error = %err, raw = trimmed, "invalid QuoteUpdateMessage payload");
@@ -154,6 +157,9 @@ async fn main() -> Result<()> {
                                 bid: None,
                                 ask: None,
                                 last_size: Some(trade.size),
+                                bar_open: None,
+                                bar_high: None,
+                                bar_low: None,
                             }, false),
                             Err(err) => {
                                 warn!(error = %err, raw = trimmed, "invalid TradePrintMessage payload");
@@ -183,6 +189,9 @@ async fn main() -> Result<()> {
                                     bid: None,
                                     ask: None,
                                     last_size: None,
+                                    bar_open: Some(bar.open),
+                                    bar_high: Some(bar.high),
+                                    bar_low: Some(bar.low),
                                 }, true)
                             }
                             Err(err) => {

@@ -48,6 +48,24 @@ pub struct TradePrintMessage {
     pub size: u64,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[allow(dead_code)] // open/high/low/volume/bar_time reserved for future strategies
+pub struct BarUpdateMessage {
+    pub version: String,
+    pub timestamp: DateTime<Utc>,
+    pub source_id: String,
+    pub correlation_id: String,
+    pub instrument: String,
+    pub bar_time: DateTime<Utc>,
+    pub interval: Option<String>,
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub close: f64,
+    pub volume: u64,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TradeSignal {

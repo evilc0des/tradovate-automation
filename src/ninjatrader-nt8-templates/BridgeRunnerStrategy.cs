@@ -1,5 +1,6 @@
 #region Using declarations
 using System;
+using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using NinjaTrader.Cbi;
@@ -21,6 +22,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private NinjaTraderEventAdapter _eventAdapter;
         private CancellationTokenSource _bridgeCts;
         private Task _signalIntakeTask;
+        private readonly ConcurrentQueue<TradeSignal> _pendingNativeSignals = new ConcurrentQueue<TradeSignal>();
 
         [NinjaScriptProperty]
         public string SignalHost { get; set; }
@@ -37,6 +39,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         [NinjaScriptProperty]
         public bool ArmOnStartup { get; set; }
 
+        [NinjaScriptProperty]
+        public bool NativeOrderSubmission { get; set; }
+
         protected override void OnStateChange()
         {
             if (State == State.SetDefaults)
@@ -52,6 +57,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 MarketDataHost = "127.0.0.1";
                 MarketDataPort = 19200;
                 ArmOnStartup = false;
+                NativeOrderSubmission = false;
             }
             else if (State == State.DataLoaded)
             {
@@ -68,15 +74,20 @@ namespace NinjaTrader.NinjaScript.Strategies
                     AllowedSignalSources = new[] { "rust.strategy" },
                 };
 
-                _bridge = new ExecutionBridge(_config, new ConsoleBridgeLogger());
+                var logger = new ConsoleBridgeLogger();
+                IOrderSubmissionGateway orderGateway = NativeOrderSubmission
+                    ? new NinjaTraderQueuedOrderSubmissionGateway(logger, EnqueueNativeOrder)
+                    : new SimulatedOrderSubmissionGateway();
+
+                _bridge = new ExecutionBridge(_config, logger, orderGateway);
                 if (ArmOnStartup)
                 {
                     _bridge.Arm();
                 }
 
-                _signalIntake = new SignalIntakeTransport(_config, _bridge, new ConsoleBridgeLogger());
-                _marketDataTransport = new NdjsonTcpMarketDataTransport(_config, new ConsoleBridgeLogger());
-                _marketDataPublisher = new MarketDataPublisher(_config, _marketDataTransport, new ConsoleBridgeLogger());
+                _signalIntake = new SignalIntakeTransport(_config, _bridge, logger);
+                _marketDataTransport = new NdjsonTcpMarketDataTransport(_config, logger);
+                _marketDataPublisher = new MarketDataPublisher(_config, _marketDataTransport, logger);
                 _eventAdapter = new NinjaTraderEventAdapter(_marketDataPublisher);
 
                 _bridgeCts = new CancellationTokenSource();
@@ -119,12 +130,57 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
         }
 
+        // Called once per bar close when Calculate = Calculate.OnEachTick.
+        // IsFirstTickOfBar becomes true on the first tick after the previous bar sealed,
+        // so we publish index [1] which is the just-completed bar.
+        protected override void OnBarUpdate()
+        {
+            if (_eventAdapter == null || _bridgeCts == null)
+                return;
+            if (BarsInProgress != 0)
+                return; // primary series only
+            if (CurrentBar < 1)
+                return; // need at least one fully closed bar
+            if (!IsFirstTickOfBar)
+                return; // fire once per bar close, not on every tick
+
+            var ts = DateTimeOffset.UtcNow;
+            var barTime = new DateTimeOffset(Time[1].ToUniversalTime(), TimeSpan.Zero);
+            var interval = GetIntervalString(BarsPeriod);
+
+            _ = _eventAdapter.OnBarAsync(
+                ts,
+                Instrument.FullName,
+                barTime,
+                interval,
+                Open[1],
+                High[1],
+                Low[1],
+                Close[1],
+                (long)Volume[1],
+                _bridgeCts.Token);
+        }
+
+        private static string GetIntervalString(NinjaTrader.Data.BarsPeriod period)
+        {
+            return period.BarsPeriodType switch
+            {
+                NinjaTrader.Data.BarsPeriodType.Second => $"{period.Value}s",
+                NinjaTrader.Data.BarsPeriodType.Minute when period.Value % 60 == 0 => $"{period.Value / 60}h",
+                NinjaTrader.Data.BarsPeriodType.Minute => $"{period.Value}m",
+                NinjaTrader.Data.BarsPeriodType.Day    => "1d",
+                _ => $"{period.Value}u",
+            };
+        }
+
         protected override void OnMarketData(MarketDataEventArgs marketDataUpdate)
         {
             if (_eventAdapter == null || _bridgeCts == null)
             {
                 return;
             }
+
+            DrainPendingNativeOrders();
 
             var ts = DateTimeOffset.UtcNow;
             if (marketDataUpdate.MarketDataType == MarketDataType.Last)
@@ -158,6 +214,65 @@ namespace NinjaTrader.NinjaScript.Strategies
                     1,
                     1,
                     _bridgeCts.Token);
+            }
+        }
+
+        private void EnqueueNativeOrder(TradeSignal signal)
+        {
+            _pendingNativeSignals.Enqueue(signal);
+        }
+
+        private void DrainPendingNativeOrders()
+        {
+            while (_pendingNativeSignals.TryDequeue(out var signal))
+            {
+                try
+                {
+                    var signalName = $"bridge-{signal.SignalId}";
+                    if (string.Equals(signal.Side, "Buy", StringComparison.OrdinalIgnoreCase))
+                    {
+                        EnterLong((int)signal.Quantity, signalName);
+                    }
+                    else if (string.Equals(signal.Side, "Sell", StringComparison.OrdinalIgnoreCase))
+                    {
+                        EnterShort((int)signal.Quantity, signalName);
+                    }
+                    else
+                    {
+                        Print($"[BridgeRunnerStrategy] Unsupported side={signal.Side} signalId={signal.SignalId}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Print($"[BridgeRunnerStrategy] Native submit failed signalId={signal.SignalId} error={ex.Message}");
+                }
+            }
+        }
+
+        private sealed class NinjaTraderQueuedOrderSubmissionGateway : IOrderSubmissionGateway
+        {
+            private readonly IBridgeLogger _logger;
+            private readonly Action<TradeSignal> _enqueue;
+
+            public NinjaTraderQueuedOrderSubmissionGateway(IBridgeLogger logger, Action<TradeSignal> enqueue)
+            {
+                _logger = logger;
+                _enqueue = enqueue;
+            }
+
+            public OrderSubmissionResult SubmitMarketOrder(TradeSignal signal)
+            {
+                _enqueue(signal);
+                var orderId = $"NT-PENDING-{Guid.NewGuid():N}";
+                _logger.Info($"Queued native NinjaTrader order signalId={signal.SignalId} side={signal.Side} qty={signal.Quantity} instrument={signal.Instrument}");
+                return new OrderSubmissionResult
+                {
+                    Accepted = true,
+                    OrderId = orderId,
+                    Detail = "Queued for NinjaTrader native submission",
+                    SignalIdTag = signal.SignalId,
+                    CorrelationIdTag = signal.CorrelationId,
+                };
             }
         }
     }

@@ -11,9 +11,9 @@ The core bridge code is in `src/ninjatrader/*.cs` and is runtime-agnostic C#.
 A NinjaTrader wrapper strategy template is provided at `src/ninjatrader-nt8-templates/BridgeRunnerStrategy.cs`.
 
 Important:
-- this repo currently uses `SimulatedOrderSubmissionGateway` by default
-- so it validates/acks/lifecycle-persists signals, but does not submit native NinjaTrader orders yet
-- that is still useful for full transport and safety-path validation in NinjaTrader runtime
+- this repo uses `SimulatedOrderSubmissionGateway` by default
+- to place native NinjaTrader orders from bridge signals, set `NativeOrderSubmission=true` in `BridgeRunnerStrategy`
+- keep it `false` for transport/safety-only simulation runs
 
 ## Prerequisites
 
@@ -94,6 +94,7 @@ Keep this terminal open while testing NinjaTrader.
 - `MarketDataHost=127.0.0.1`
 - `MarketDataPort=19200`
 - `ArmOnStartup=true` for immediate test (or false and arm manually in code flow)
+- `NativeOrderSubmission=true` to submit real NinjaTrader strategy orders from accepted signals
 5. Enable strategy.
 
 Expected NinjaTrader/Output logs:

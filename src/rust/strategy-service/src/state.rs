@@ -123,8 +123,6 @@ impl MarketState {
         if let Some(value) = last {
             entry.last = Some(value);
             entry.rolling.push_close(value);
-            entry.ema_fast.update(value);
-            entry.ema_slow.update(value);
         }
 
         if entry.session.first_seen.is_none() {
@@ -132,6 +130,14 @@ impl MarketState {
         }
         entry.session.last_seen = Some(timestamp);
         entry.session.tick_count = entry.session.tick_count.saturating_add(1);
+    }
+
+    /// Update EMAs from a completed bar close.  Must be called instead of
+    /// (or in addition to) `update_quote` for bar-based strategies.
+    pub fn update_bar_close(&mut self, instrument: &str, close: f64) {
+        let entry = self.by_instrument.entry(instrument.to_string()).or_default();
+        entry.ema_fast.update(close);
+        entry.ema_slow.update(close);
     }
 
     pub fn get(&self, instrument: &str) -> Option<&InstrumentState> {

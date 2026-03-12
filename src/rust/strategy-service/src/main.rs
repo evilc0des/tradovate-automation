@@ -9,6 +9,7 @@ mod transport;
 
 use anyhow::{Context, Result};
 use clap::Parser;
+use std::collections::HashSet;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
 use tracing::debug;
@@ -18,7 +19,7 @@ use tracing_subscriber::EnvFilter;
 use crate::cli::Cli;
 use crate::config::AppConfig;
 use crate::errors::{log_error, log_message, ErrorKind};
-use crate::models::{InboundEnvelope, MarketDataMessage, QuoteUpdateMessage, TradePrintMessage};
+use crate::models::{BarUpdateMessage, InboundEnvelope, MarketDataMessage, QuoteUpdateMessage, TradePrintMessage};
 use crate::state::MarketState;
 use crate::strategy::build_strategy;
 
@@ -50,6 +51,7 @@ async fn main() -> Result<()> {
 
     let mut market_state = MarketState::default();
     let mut strategy = build_strategy(&cfg);
+    let mut warned_instruments: HashSet<String> = HashSet::new();
     info!(strategy_id = %strategy.strategy_id(), "active strategy loaded");
 
     loop {
@@ -108,9 +110,9 @@ async fn main() -> Result<()> {
                         continue;
                     }
 
-                    let msg = if envelope.message_type == "MarketDataMessage" {
+                    let (msg, is_bar) = if envelope.message_type == "MarketDataMessage" {
                         match serde_json::from_str::<MarketDataMessage>(trimmed) {
-                            Ok(msg) => msg,
+                            Ok(msg) => (msg, false),
                             Err(err) => {
                                 warn!(error = %err, raw = trimmed, "invalid MarketDataMessage payload");
                                 log_message(ErrorKind::Parse, "market_data_parse", trimmed);
@@ -119,7 +121,7 @@ async fn main() -> Result<()> {
                         }
                     } else if envelope.message_type == "QuoteUpdateMessage" {
                         match serde_json::from_str::<QuoteUpdateMessage>(trimmed) {
-                            Ok(quote) => MarketDataMessage {
+                            Ok(quote) => (MarketDataMessage {
                                 message_type: "MarketDataMessage".to_string(),
                                 version: quote.version,
                                 timestamp: quote.timestamp,
@@ -131,7 +133,7 @@ async fn main() -> Result<()> {
                                 bid: Some(quote.bid),
                                 ask: Some(quote.ask),
                                 last_size: None,
-                            },
+                            }, false),
                             Err(err) => {
                                 warn!(error = %err, raw = trimmed, "invalid QuoteUpdateMessage payload");
                                 log_message(ErrorKind::Parse, "market_data_parse", trimmed);
@@ -140,7 +142,7 @@ async fn main() -> Result<()> {
                         }
                     } else if envelope.message_type == "TradePrintMessage" {
                         match serde_json::from_str::<TradePrintMessage>(trimmed) {
-                            Ok(trade) => MarketDataMessage {
+                            Ok(trade) => (MarketDataMessage {
                                 message_type: "MarketDataMessage".to_string(),
                                 version: trade.version,
                                 timestamp: trade.timestamp,
@@ -152,9 +154,39 @@ async fn main() -> Result<()> {
                                 bid: None,
                                 ask: None,
                                 last_size: Some(trade.size),
-                            },
+                            }, false),
                             Err(err) => {
                                 warn!(error = %err, raw = trimmed, "invalid TradePrintMessage payload");
+                                log_message(ErrorKind::Parse, "market_data_parse", trimmed);
+                                continue;
+                            }
+                        }
+                    } else if envelope.message_type == "BarUpdateMessage" {
+                        match serde_json::from_str::<BarUpdateMessage>(trimmed) {
+                            Ok(bar) => {
+                                market_state.update_bar_close(&bar.instrument, bar.close);
+                                debug!(
+                                    instrument = %bar.instrument,
+                                    interval = ?bar.interval,
+                                    close = bar.close,
+                                    "bar close — EMAs updated"
+                                );
+                                (MarketDataMessage {
+                                    message_type: "MarketDataMessage".to_string(),
+                                    version: bar.version,
+                                    timestamp: bar.timestamp,
+                                    source_id: bar.source_id,
+                                    correlation_id: bar.correlation_id,
+                                    instrument: bar.instrument,
+                                    event_type: "BarUpdate".to_string(),
+                                    last_price: Some(bar.close),
+                                    bid: None,
+                                    ask: None,
+                                    last_size: None,
+                                }, true)
+                            }
+                            Err(err) => {
+                                warn!(error = %err, raw = trimmed, "invalid BarUpdateMessage payload");
                                 log_message(ErrorKind::Parse, "market_data_parse", trimmed);
                                 continue;
                             }
@@ -179,7 +211,20 @@ async fn main() -> Result<()> {
                         "accepted market data frame"
                     );
 
-                    market_state.update_quote(&msg.instrument, msg.bid, msg.ask, msg.last_price, msg.timestamp);
+                    if !is_bar {
+                        market_state.update_quote(&msg.instrument, msg.bid, msg.ask, msg.last_price, msg.timestamp);
+                    }
+
+                    if !cfg.allowed_instruments.iter().any(|i| i == &msg.instrument) {
+                        if warned_instruments.insert(msg.instrument.clone()) {
+                            warn!(
+                                instrument = %msg.instrument,
+                                allowed = ?cfg.allowed_instruments,
+                                "received data for instrument not in allowed list — update --instruments flag"
+                            );
+                        }
+                        continue;
+                    }
 
                     let features = features::compute_features(&market_state, &msg.instrument);
                     if let Some(signal) = strategy.on_market_data(&cfg, &msg, features.as_ref()) {

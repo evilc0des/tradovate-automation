@@ -69,10 +69,6 @@ impl Strategy for DeterministicStrategy {
         msg: &MarketDataMessage,
         features: Option<&FeatureSnapshot>,
     ) -> Option<TradeSignal> {
-        if !cfg.allowed_instruments.iter().any(|i| i == &msg.instrument) {
-            return None;
-        }
-
         if cfg.force_trade_once && !self.forced_trade_emitted {
             self.forced_trade_emitted = true;
             return Some(build_signal(
@@ -159,10 +155,6 @@ impl Strategy for EmaMomentumStrategy {
         msg: &MarketDataMessage,
         features: Option<&FeatureSnapshot>,
     ) -> Option<TradeSignal> {
-        if !cfg.allowed_instruments.iter().any(|i| i == &msg.instrument) {
-            return None;
-        }
-
         if cfg.force_trade_once && !self.forced_trade_emitted {
             self.forced_trade_emitted = true;
             return Some(build_signal(
@@ -174,20 +166,25 @@ impl Strategy for EmaMomentumStrategy {
             ));
         }
 
-        let now = Instant::now();
-        if let Some(last) = self.last_emitted_by_instrument.get(&msg.instrument) {
-            if now.duration_since(*last) < self.cooldown {
-                return None;
-            }
-        }
+        // Regime tracking must run unconditionally — even when features are
+        // absent or incomplete — so that partial-data ticks don't corrupt the
+        // crossover detector.  We only skip the regime *path* when both EMA
+        // values are actually available.
+        let ema_state = features.and_then(|f| {
+            let fast = f.ema_fast?;
+            let slow = f.ema_slow?;
+            Some((f, fast, slow))
+        });
 
-        let f = features?;
-        let fast = f.ema_fast?;
-        let slow = f.ema_slow?;
+        let (f, fast, slow) = match ema_state {
+            Some(v) => v,
+            None => return None, // EMAs not warm yet — nothing to decide
+        };
+
         let fast_above = fast > slow;
 
         // Detect crossover vs previous regime.
-        let side = match self.prev_fast_above_slow.get(&msg.instrument) {
+        let crossover = match self.prev_fast_above_slow.get(&msg.instrument) {
             Some(&prev_above) => {
                 if fast_above && !prev_above {
                     Some("Buy")   // crossed up
@@ -197,14 +194,23 @@ impl Strategy for EmaMomentumStrategy {
                     None          // no change in regime
                 }
             }
-            None => None, // first tick — record regime but don't trade yet
+            None => None, // first bar — record regime but don't trade yet
         };
 
-        // Always update the recorded regime.
+        // Always keep regime current — must happen BEFORE the cooldown gate so
+        // that crossovers occurring during cooldown are not silently lost.
         self.prev_fast_above_slow
             .insert(msg.instrument.clone(), fast_above);
 
-        let side = side?;
+        let side = crossover?;
+
+        let now = Instant::now();
+        if let Some(last) = self.last_emitted_by_instrument.get(&msg.instrument) {
+            if now.duration_since(*last) < self.cooldown {
+                return None;
+            }
+        }
+
         self.last_emitted_by_instrument
             .insert(msg.instrument.clone(), now);
 

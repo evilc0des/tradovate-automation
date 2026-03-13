@@ -41,6 +41,12 @@ pub struct QuoteUpdateMessage {
     pub instrument: String,
     pub bid: f64,
     pub ask: f64,
+    /// Best bid size from the L1 snapshot; absent in older bridge versions.
+    #[serde(default)]
+    pub bid_size: Option<i32>,
+    /// Best ask size from the L1 snapshot; absent in older bridge versions.
+    #[serde(default)]
+    pub ask_size: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -53,6 +59,10 @@ pub struct TradePrintMessage {
     pub instrument: String,
     pub price: f64,
     pub size: u64,
+    /// Which side initiated the trade: `"Buy"`, `"Sell"`, or `"Unknown"`.
+    /// Absent in older bridge versions — defaults to `None`.
+    #[serde(default)]
+    pub aggressor_side: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

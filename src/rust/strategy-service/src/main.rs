@@ -121,22 +121,32 @@ async fn main() -> Result<()> {
                         }
                     } else if envelope.message_type == "QuoteUpdateMessage" {
                         match serde_json::from_str::<QuoteUpdateMessage>(trimmed) {
-                            Ok(quote) => (MarketDataMessage {
-                                message_type: "MarketDataMessage".to_string(),
-                                version: quote.version,
-                                timestamp: quote.timestamp,
-                                source_id: quote.source_id,
-                                correlation_id: quote.correlation_id,
-                                instrument: quote.instrument,
-                                event_type: "QuoteUpdate".to_string(),
-                                last_price: None,
-                                bid: Some(quote.bid),
-                                ask: Some(quote.ask),
-                                last_size: None,
-                                bar_open: None,
-                                bar_high: None,
-                                bar_low: None,
-                            }, false),
+                            Ok(quote) => {
+                                market_state.update_tape_quote(
+                                    &quote.instrument,
+                                    quote.timestamp,
+                                    quote.bid,
+                                    quote.ask,
+                                    quote.bid_size.unwrap_or(0) as u32,
+                                    quote.ask_size.unwrap_or(0) as u32,
+                                );
+                                (MarketDataMessage {
+                                    message_type: "MarketDataMessage".to_string(),
+                                    version: quote.version,
+                                    timestamp: quote.timestamp,
+                                    source_id: quote.source_id,
+                                    correlation_id: quote.correlation_id,
+                                    instrument: quote.instrument,
+                                    event_type: "QuoteUpdate".to_string(),
+                                    last_price: None,
+                                    bid: Some(quote.bid),
+                                    ask: Some(quote.ask),
+                                    last_size: None,
+                                    bar_open: None,
+                                    bar_high: None,
+                                    bar_low: None,
+                                }, false)
+                            }
                             Err(err) => {
                                 warn!(error = %err, raw = trimmed, "invalid QuoteUpdateMessage payload");
                                 log_message(ErrorKind::Parse, "market_data_parse", trimmed);
@@ -145,22 +155,31 @@ async fn main() -> Result<()> {
                         }
                     } else if envelope.message_type == "TradePrintMessage" {
                         match serde_json::from_str::<TradePrintMessage>(trimmed) {
-                            Ok(trade) => (MarketDataMessage {
-                                message_type: "MarketDataMessage".to_string(),
-                                version: trade.version,
-                                timestamp: trade.timestamp,
-                                source_id: trade.source_id,
-                                correlation_id: trade.correlation_id,
-                                instrument: trade.instrument,
-                                event_type: "TradePrint".to_string(),
-                                last_price: Some(trade.price),
-                                bid: None,
-                                ask: None,
-                                last_size: Some(trade.size),
-                                bar_open: None,
-                                bar_high: None,
-                                bar_low: None,
-                            }, false),
+                            Ok(trade) => {
+                                market_state.update_tape_print(
+                                    &trade.instrument,
+                                    trade.timestamp,
+                                    trade.price,
+                                    trade.size,
+                                    trade.aggressor_side.as_deref(),
+                                );
+                                (MarketDataMessage {
+                                    message_type: "MarketDataMessage".to_string(),
+                                    version: trade.version,
+                                    timestamp: trade.timestamp,
+                                    source_id: trade.source_id,
+                                    correlation_id: trade.correlation_id,
+                                    instrument: trade.instrument,
+                                    event_type: "TradePrint".to_string(),
+                                    last_price: Some(trade.price),
+                                    bid: None,
+                                    ask: None,
+                                    last_size: Some(trade.size),
+                                    bar_open: None,
+                                    bar_high: None,
+                                    bar_low: None,
+                                }, false)
+                            }
                             Err(err) => {
                                 warn!(error = %err, raw = trimmed, "invalid TradePrintMessage payload");
                                 log_message(ErrorKind::Parse, "market_data_parse", trimmed);
@@ -235,7 +254,7 @@ async fn main() -> Result<()> {
                         continue;
                     }
 
-                    let features = features::compute_features(&market_state, &msg.instrument);
+                    let features = features::compute_features(&market_state, &msg.instrument, msg.timestamp);
                     if let Some(signal) = strategy.on_market_data(&cfg, &msg, features.as_ref()) {
                         if let Err(err) = transport::send_signal(&cfg.signal_bind, &signal).await {
                             log_error(ErrorKind::Transport, "signal_dispatch", &err);

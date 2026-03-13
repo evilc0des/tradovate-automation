@@ -59,6 +59,78 @@ pub struct Cli {
     /// [env: FORCE_TRADE_SIDE]
     #[arg(long, env = "FORCE_TRADE_SIDE", default_value = "Buy")]
     pub force_trade_side: String,
+
+    // ── Tape-burst scalper parameters ─────────────────────────────────────────
+
+    /// Tick size for the trading instrument in price units (e.g. 0.25 for
+    /// NQ / MNQ).  Used to convert price moves to tick counts for target and
+    /// stop calculations.
+    /// [env: TAPE_TICK_SIZE]
+    #[arg(long, env = "TAPE_TICK_SIZE", default_value = "0.25")]
+    pub tape_tick_size: f64,
+
+    /// Minimum signed volume imbalance (buy − sell contracts) in the
+    /// 2-second tape window required to recognise a burst.
+    /// [env: TAPE_MICRO_DELTA_MIN]
+    #[arg(long, env = "TAPE_MICRO_DELTA_MIN", default_value = "40")]
+    pub tape_micro_delta_min: i64,
+
+    /// Minimum aggressor-volume ratio (buy/sell for longs; sell/buy for shorts)
+    /// over the 2-second window.
+    /// [env: TAPE_AGGRESSION_RATIO_MIN]
+    #[arg(long, env = "TAPE_AGGRESSION_RATIO_MIN", default_value = "1.8")]
+    pub tape_aggression_ratio_min: f64,
+
+    /// Tape-speed multiplier: 2-second prints-per-second must exceed
+    /// the 5-second baseline by at least this factor.
+    /// [env: TAPE_SPEED_FACTOR_MIN]
+    #[arg(long, env = "TAPE_SPEED_FACTOR_MIN", default_value = "1.5")]
+    pub tape_speed_factor_min: f64,
+
+    /// Minimum price-response ratio in ticks per 10 aggressive contracts.
+    /// Guards against aggression-without-movement (absorption) scenarios.
+    /// [env: TAPE_PRICE_RESPONSE_MIN_TICKS]
+    #[arg(long, env = "TAPE_PRICE_RESPONSE_MIN_TICKS", default_value = "0.5")]
+    pub tape_price_response_min_ticks: f64,
+
+    /// Profit target in ticks for an open tape-burst position.
+    /// [env: TAPE_TARGET_TICKS]
+    #[arg(long, env = "TAPE_TARGET_TICKS", default_value = "2.0")]
+    pub tape_target_ticks: f64,
+
+    /// Hard stop size in ticks for an open tape-burst position.
+    /// [env: TAPE_STOP_TICKS]
+    #[arg(long, env = "TAPE_STOP_TICKS", default_value = "2.0")]
+    pub tape_stop_ticks: f64,
+
+    /// Maximum hold time in milliseconds before the time-stop exit fires.
+    /// [env: TAPE_TIME_STOP_MS]
+    #[arg(long, env = "TAPE_TIME_STOP_MS", default_value = "8000")]
+    pub tape_time_stop_ms: u64,
+
+    /// Absolute micro-delta magnitude in the 1-second window that triggers
+    /// a flow-failure exit when the delta flips against the open position.
+    /// [env: TAPE_FLIP_DELTA]
+    #[arg(long, env = "TAPE_FLIP_DELTA", default_value = "20")]
+    pub tape_flip_delta: i64,
+
+    /// Start of the allowed UTC trading session (HH:MM).  Entry signals are
+    /// suppressed outside the [start, end] window.  Default "00:00" = no filter.
+    /// [env: TAPE_SESSION_START_UTC]
+    #[arg(long, env = "TAPE_SESSION_START_UTC", default_value = "00:00")]
+    pub tape_session_start_utc: String,
+
+    /// End of the allowed UTC trading session (HH:MM).  Default "23:59" = no filter.
+    /// [env: TAPE_SESSION_END_UTC]
+    #[arg(long, env = "TAPE_SESSION_END_UTC", default_value = "23:59")]
+    pub tape_session_end_utc: String,
+
+    /// L1 best-ask (or best-bid) size threshold used as a lightweight near-wall
+    /// proxy.  Entry is suppressed when the near-touch size >= this value.
+    /// Set very high (default 1000) to disable.
+    /// [env: TAPE_WALL_MIN_SIZE]
+    #[arg(long, env = "TAPE_WALL_MIN_SIZE", default_value = "1000")]
+    pub tape_wall_min_size: u32,
 }
 
 /// Available strategy names.
@@ -70,6 +142,10 @@ pub enum StrategyArg {
     EmaMomentum,
     /// Heikin Ashi reversal strategy — enters on two consecutive same-colour candles.
     HeikinAshi,
+    /// Event-driven tape burst scalper — enters on aggressive order-flow bursts
+    /// with confirmed price response; exits on fixed target/stop, flow-failure,
+    /// or time-stop.
+    TapeBurstScalper,
 }
 
 impl StrategyArg {
@@ -79,6 +155,7 @@ impl StrategyArg {
             StrategyArg::Deterministic => "deterministic",
             StrategyArg::EmaMomentum => "ema-momentum",
             StrategyArg::HeikinAshi => "heikin-ashi",
+            StrategyArg::TapeBurstScalper => "tape-burst-scalper",
         }
     }
 }

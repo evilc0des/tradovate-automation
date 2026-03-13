@@ -8,10 +8,12 @@ use crate::models::{MarketDataMessage, TradeSignal};
 mod deterministic;
 mod ema_momentum;
 mod heikin_ashi;
+mod tape_burst_scalper;
 
 pub use deterministic::DeterministicStrategy;
 pub use ema_momentum::EmaMomentumStrategy;
 pub use heikin_ashi::HeikinAshiStrategy;
+pub use tape_burst_scalper::TapeBurstScalperStrategy;
 
 // ── Pluggable trait ───────────────────────────────────────────────────────────
 
@@ -38,6 +40,7 @@ pub fn build_strategy(cfg: &AppConfig) -> Box<dyn Strategy> {
     match cfg.strategy_name.as_str() {
         "ema-momentum" => Box::new(EmaMomentumStrategy::new(cfg.cooldown_ms)),
         "heikin-ashi" => Box::new(HeikinAshiStrategy::new(cfg.cooldown_ms)),
+        "tape-burst-scalper" => Box::new(TapeBurstScalperStrategy::new(cfg.cooldown_ms)),
         _ => Box::new(DeterministicStrategy::new(cfg.cooldown_ms)),
     }
 }

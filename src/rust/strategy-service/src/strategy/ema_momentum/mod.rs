@@ -15,6 +15,10 @@ use super::{build_signal, Strategy, TradeSignal};
 //   Buy  – 5-period EMA crosses above 20-period EMA (momentum turning up).
 //   Sell – 5-period EMA crosses below 20-period EMA (momentum turning down).
 //
+// Exit rules (candle-close based, bypass cooldown):
+//   Exit Long  – bar closes below the 20-period slow EMA.
+//   Exit Short – bar closes above the 20-period slow EMA.
+//
 // Both EMAs are computed on last-trade prices via the shared MarketState.
 // No signal is emitted until both EMAs have at least one value (requires >=1
 // trade print).  A per-instrument cooldown prevents re-entry spam.
@@ -25,6 +29,9 @@ pub struct EmaMomentumStrategy {
     forced_trade_emitted: bool,
     /// Previous EMA regime per instrument: `true` = fast was above slow.
     prev_fast_above_slow: HashMap<String, bool>,
+    /// Currently tracked position per instrument: "Long" or "Short".
+    /// Absent means flat (no known open position).
+    open_position: HashMap<String, String>,
 }
 
 impl EmaMomentumStrategy {
@@ -34,6 +41,7 @@ impl EmaMomentumStrategy {
             last_emitted_by_instrument: HashMap::new(),
             forced_trade_emitted: false,
             prev_fast_above_slow: HashMap::new(),
+            open_position: HashMap::new(),
         }
     }
 }
@@ -75,6 +83,38 @@ impl Strategy for EmaMomentumStrategy {
             None => return None, // EMAs not warm yet — nothing to decide
         };
 
+        // ATR may not be warm until the first bar arrives; use it only when
+        // available.  Exit threshold defaults to 0.0 (i.e. any breach
+        // triggers) until ATR is populated so we don't silently miss exits.
+        let atr_threshold = f.atr.map(|a| 0.2 * a).unwrap_or(0.0);
+
+        // ── Candle-close exit check (BarUpdate only) ──────────────────────────
+        // Evaluated before entry logic; exits bypass the cooldown gate.
+        if msg.event_type == "BarUpdate" {
+            if let Some(bar_close) = msg.last_price {
+                let exit_side = match self.open_position.get(&msg.instrument).map(String::as_str) {
+                    Some("Long")  if bar_close < slow - atr_threshold => Some("Sell"),
+                    Some("Short") if bar_close > slow + atr_threshold => Some("Buy"),
+                    _ => None,
+                };
+                if let Some(side) = exit_side {
+                    self.open_position.remove(&msg.instrument);
+                    // Reset regime so the next entry requires a fresh crossover.
+                    self.prev_fast_above_slow.remove(&msg.instrument);
+                    return Some(build_signal(
+                        cfg,
+                        msg,
+                        self.strategy_id(),
+                        side,
+                        &format!(
+                            "ema-exit bar_close={:.4} slow_ema={:.4} atr={:.4} threshold={:.4}",
+                            bar_close, slow, f.atr.unwrap_or(0.0), atr_threshold
+                        ),
+                    ));
+                }
+            }
+        }
+
         let fast_above = fast > slow;
 
         // Detect crossover vs previous regime.
@@ -107,6 +147,11 @@ impl Strategy for EmaMomentumStrategy {
 
         self.last_emitted_by_instrument
             .insert(msg.instrument.clone(), now);
+
+        // Record the new position so the exit check has something to act on.
+        let position = if side == "Buy" { "Long" } else { "Short" };
+        self.open_position
+            .insert(msg.instrument.clone(), position.to_string());
 
         Some(build_signal(
             cfg,

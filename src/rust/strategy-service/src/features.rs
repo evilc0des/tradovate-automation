@@ -51,6 +51,8 @@ pub struct FeatureSnapshot {
     pub ema_slow: Option<f64>,
     /// fast EMA minus slow EMA; positive = uptrend regime, negative = downtrend.
     pub ema_gap: Option<f64>,
+    /// 14-period ATR (EMA of True Range) computed from bar closes.
+    pub atr: Option<f64>,
     /// Tape micro-structure features; `None` until the first trade print
     /// has been received for this instrument.
     pub tape: Option<TapeFeatures>,
@@ -74,6 +76,7 @@ pub fn compute_features(
         (Some(f), Some(s)) => Some(f - s),
         _ => None,
     };
+    let atr = snapshot.atr_ema.value();
 
     // ── Tape features ─────────────────────────────────────────────────────────
     let tape = if snapshot.tape.prints.is_empty() {
@@ -117,6 +120,7 @@ pub fn compute_features(
         ema_fast,
         ema_slow,
         ema_gap,
+        atr,
         tape,
     })
 }

@@ -43,6 +43,10 @@ pub struct InstrumentState {
     pub ema_fast: Ema,
     /// 20-period EMA of last trade prices.
     pub ema_slow: Ema,
+    /// 14-period EMA of True Range (ATR).
+    pub atr_ema: Ema,
+    /// Close of the previous completed bar; used for True Range computation.
+    pub prev_bar_close: Option<f64>,
     /// Rolling tape micro-structure state for the tape-burst scalper.
     pub tape: TapeState,
 }
@@ -57,6 +61,8 @@ impl Default for InstrumentState {
             session: SessionState::default(),
             ema_fast: Ema::new(5),
             ema_slow: Ema::new(20),
+            atr_ema: Ema::new(14),
+            prev_bar_close: None,
             tape: TapeState::default(),
         }
     }
@@ -135,12 +141,26 @@ impl MarketState {
         entry.session.tick_count = entry.session.tick_count.saturating_add(1);
     }
 
-    /// Update EMAs from a completed bar close.  Must be called instead of
-    /// (or in addition to) `update_quote` for bar-based strategies.
-    pub fn update_bar_close(&mut self, instrument: &str, close: f64) {
+    /// Update EMAs and ATR from a completed bar (high, low, close).
+    /// Must be called instead of (or in addition to) `update_quote` for
+    /// bar-based strategies.
+    pub fn update_bar_close(&mut self, instrument: &str, high: f64, low: f64, close: f64) {
         let entry = self.by_instrument.entry(instrument.to_string()).or_default();
         entry.ema_fast.update(close);
         entry.ema_slow.update(close);
+
+        // True Range = max(high-low, |high-prev_close|, |low-prev_close|)
+        let tr = match entry.prev_bar_close {
+            Some(prev) => {
+                let hl = high - low;
+                let hc = (high - prev).abs();
+                let lc = (low  - prev).abs();
+                hl.max(hc).max(lc)
+            }
+            None => high - low, // first bar: fall back to simple range
+        };
+        entry.atr_ema.update(tr);
+        entry.prev_bar_close = Some(close);
     }
 
     pub fn get(&self, instrument: &str) -> Option<&InstrumentState> {

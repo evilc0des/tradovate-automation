@@ -189,7 +189,7 @@ async fn main() -> Result<()> {
                     } else if envelope.message_type == "BarUpdateMessage" {
                         match serde_json::from_str::<BarUpdateMessage>(trimmed) {
                             Ok(bar) => {
-                                market_state.update_bar_close(&bar.instrument, bar.close);
+                                market_state.update_bar_close(&bar.instrument, bar.high, bar.low, bar.close);
                                 debug!(
                                     instrument = %bar.instrument,
                                     interval = ?bar.interval,

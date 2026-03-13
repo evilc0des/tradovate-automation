@@ -124,3 +124,107 @@ pub fn compute_features(
         tape,
     })
 }
+
+// ── tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+
+    fn make_state_with_quote(bid: f64, ask: f64, last: f64) -> MarketState {
+        let mut state = MarketState::default();
+        state.update_quote("MES 06-26", Some(bid), Some(ask), Some(last), Utc::now());
+        state
+    }
+
+    #[test]
+    fn returns_none_when_no_data() {
+        let state = MarketState::default();
+        assert!(compute_features(&state, "MES 06-26", Utc::now()).is_none());
+    }
+
+    #[test]
+    fn returns_none_when_missing_last() {
+        let mut state = MarketState::default();
+        state.update_quote("MES 06-26", Some(100.0), Some(101.0), None, Utc::now());
+        assert!(compute_features(&state, "MES 06-26", Utc::now()).is_none());
+    }
+
+    #[test]
+    fn spread_and_mid_computed_correctly() {
+        let state = make_state_with_quote(100.0, 101.0, 100.5);
+        let fs = compute_features(&state, "MES 06-26", Utc::now()).unwrap();
+        assert!((fs.spread - 1.0).abs() < 1e-9, "spread = ask - bid = 1.0");
+        assert!((fs.mid_price - 100.5).abs() < 1e-9, "mid = (100+101)/2 = 100.5");
+    }
+
+    #[test]
+    fn bid_ask_last_pass_through() {
+        let state = make_state_with_quote(4990.0, 4991.0, 4990.25);
+        let fs = compute_features(&state, "MES 06-26", Utc::now()).unwrap();
+        assert_eq!(fs.bid, 4990.0);
+        assert_eq!(fs.ask, 4991.0);
+        assert_eq!(fs.last, 4990.25);
+    }
+
+    #[test]
+    fn emas_are_none_without_bar_updates() {
+        let state = make_state_with_quote(100.0, 101.0, 100.5);
+        let fs = compute_features(&state, "MES 06-26", Utc::now()).unwrap();
+        assert!(fs.ema_fast.is_none());
+        assert!(fs.ema_slow.is_none());
+        assert!(fs.ema_gap.is_none());
+        assert!(fs.atr.is_none());
+    }
+
+    #[test]
+    fn emas_are_some_after_bar_updates() {
+        let mut state = make_state_with_quote(100.0, 101.0, 100.5);
+        state.update_bar_close("MES 06-26", 101.0, 99.0, 100.0);
+        let fs = compute_features(&state, "MES 06-26", Utc::now()).unwrap();
+        assert!(fs.ema_fast.is_some());
+        assert!(fs.ema_slow.is_some());
+        assert!(fs.atr.is_some());
+    }
+
+    #[test]
+    fn ema_gap_is_zero_when_fast_equals_slow_after_seed() {
+        // After a single bar both EMAs seed to the same close → gap = 0.
+        let mut state = make_state_with_quote(100.0, 101.0, 100.0);
+        state.update_bar_close("MES 06-26", 101.0, 99.0, 100.0);
+        let fs = compute_features(&state, "MES 06-26", Utc::now()).unwrap();
+        assert!(fs.ema_gap.is_some());
+        assert!((fs.ema_gap.unwrap()).abs() < 1e-9);
+    }
+
+    #[test]
+    fn tape_is_none_without_prints() {
+        let state = make_state_with_quote(100.0, 101.0, 100.5);
+        let fs = compute_features(&state, "MES 06-26", Utc::now()).unwrap();
+        assert!(fs.tape.is_none());
+    }
+
+    #[test]
+    fn tape_is_some_after_print() {
+        let mut state = make_state_with_quote(100.0, 101.0, 100.5);
+        let ts = Utc::now();
+        state.update_tape_print("MES 06-26", ts, 100.5, 5, Some("Buy"));
+        let fs = compute_features(&state, "MES 06-26", ts).unwrap();
+        assert!(fs.tape.is_some());
+        let tape = fs.tape.unwrap();
+        assert_eq!(tape.buy_vol_2s, 5);
+        assert_eq!(tape.sell_vol_2s, 0);
+        assert_eq!(tape.micro_delta_2s, 5);
+    }
+
+    #[test]
+    fn session_ticks_increments_with_quotes() {
+        let mut state = MarketState::default();
+        let ts = Utc::now();
+        state.update_quote("MES 06-26", Some(100.0), Some(101.0), Some(100.5), ts);
+        state.update_quote("MES 06-26", Some(100.0), Some(101.0), Some(100.5), ts);
+        let fs = compute_features(&state, "MES 06-26", ts).unwrap();
+        assert_eq!(fs.session_ticks, 2);
+    }
+}

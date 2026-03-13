@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+  </ItemGroup>
+
+  <!-- Bridge source files linked from src/ninjatrader -->
+  <ItemGroup>
+    <Compile Include="..\..\src\ninjatrader\ActualStateSnapshotStore.cs"   Link="Bridge\ActualStateSnapshotStore.cs" />
+    <Compile Include="..\..\src\ninjatrader\AmbiguousSignalStore.cs"       Link="Bridge\AmbiguousSignalStore.cs" />
+    <Compile Include="..\..\src\ninjatrader\BridgeConfig.cs"               Link="Bridge\BridgeConfig.cs" />
+    <Compile Include="..\..\src\ninjatrader\BridgeLogger.cs"               Link="Bridge\BridgeLogger.cs" />
+    <Compile Include="..\..\src\ninjatrader\Compatibility.IsExternalInit.cs" Link="Bridge\Compatibility.IsExternalInit.cs" />
+    <Compile Include="..\..\src\ninjatrader\Compatibility.SystemTextJson.cs" Link="Bridge\Compatibility.SystemTextJson.cs" />
+    <Compile Include="..\..\src\ninjatrader\DedupStore.cs"                 Link="Bridge\DedupStore.cs" />
+    <Compile Include="..\..\src\ninjatrader\Dtos.cs"                       Link="Bridge\Dtos.cs" />
+    <Compile Include="..\..\src\ninjatrader\ExecutionBridge.cs"            Link="Bridge\ExecutionBridge.cs" />
+    <Compile Include="..\..\src\ninjatrader\ExecutionJournal.cs"           Link="Bridge\ExecutionJournal.cs" />
+    <Compile Include="..\..\src\ninjatrader\ExpectedStateSnapshotStore.cs" Link="Bridge\ExpectedStateSnapshotStore.cs" />
+    <Compile Include="..\..\src\ninjatrader\MarketDataDtos.cs"             Link="Bridge\MarketDataDtos.cs" />
+    <Compile Include="..\..\src\ninjatrader\MarketDataEvents.cs"           Link="Bridge\MarketDataEvents.cs" />
+    <Compile Include="..\..\src\ninjatrader\MarketDataNormalizer.cs"       Link="Bridge\MarketDataNormalizer.cs" />
+    <Compile Include="..\..\src\ninjatrader\MarketDataPublisher.cs"        Link="Bridge\MarketDataPublisher.cs" />
+    <Compile Include="..\..\src\ninjatrader\MarketDataTransport.cs"        Link="Bridge\MarketDataTransport.cs" />
+    <Compile Include="..\..\src\ninjatrader\NinjaTraderEventAdapter.cs"    Link="Bridge\NinjaTraderEventAdapter.cs" />
+    <Compile Include="..\..\src\ninjatrader\OrderLifecycleTracker.cs"      Link="Bridge\OrderLifecycleTracker.cs" />
+    <Compile Include="..\..\src\ninjatrader\OrderSubmissionGateway.cs"     Link="Bridge\OrderSubmissionGateway.cs" />
+    <Compile Include="..\..\src\ninjatrader\PersistenceHealthMonitor.cs"   Link="Bridge\PersistenceHealthMonitor.cs" />
+    <Compile Include="..\..\src\ninjatrader\ReconciliationEngine.cs"       Link="Bridge\ReconciliationEngine.cs" />
+    <Compile Include="..\..\src\ninjatrader\RuntimeMarkersStore.cs"        Link="Bridge\RuntimeMarkersStore.cs" />
+    <Compile Include="..\..\src\ninjatrader\RiskEngine.cs"                 Link="Bridge\RiskEngine.cs" />
+    <Compile Include="..\..\src\ninjatrader\SafetyStateManager.cs"         Link="Bridge\SafetyStateManager.cs" />
+    <Compile Include="..\..\src\ninjatrader\SignalIntakeTransport.cs"      Link="Bridge\SignalIntakeTransport.cs" />
+    <Compile Include="..\..\src\ninjatrader\SignalValidator.cs"            Link="Bridge\SignalValidator.cs" />
+    <Compile Include="..\..\src\ninjatrader\SimulationMarketDataFeed.cs"   Link="Bridge\SimulationMarketDataFeed.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

@@ -156,3 +156,143 @@ impl AppConfig {
     }
 }
 
+// ── tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn valid_config() -> AppConfig {
+        AppConfig {
+            market_data_bind: "127.0.0.1:7001".to_string(),
+            signal_bind: "127.0.0.1:7002".to_string(),
+            allowed_account: "SIM123".to_string(),
+            allowed_instruments: vec!["MES 06-26".to_string()],
+            cooldown_ms: 500,
+            force_trade_once: false,
+            force_trade_side: "Buy".to_string(),
+            strategy_name: "deterministic".to_string(),
+            tape_tick_size: 0.25,
+            tape_micro_delta_min: 10,
+            tape_aggression_ratio_min: 2.0,
+            tape_speed_factor_min: 1.5,
+            tape_price_response_min_ticks: 0.5,
+            tape_target_ticks: 4.0,
+            tape_stop_ticks: 2.0,
+            tape_time_stop_ms: 30_000,
+            tape_flip_delta: 5,
+            tape_session_start_utc: "00:00".to_string(),
+            tape_session_end_utc: "23:59".to_string(),
+            tape_wall_min_size: 1000,
+        }
+    }
+
+    #[test]
+    fn valid_config_passes_validate() {
+        assert!(valid_config().validate().is_ok());
+    }
+
+    #[test]
+    fn invalid_market_data_bind_fails() {
+        let mut cfg = valid_config();
+        cfg.market_data_bind = "not-an-address".to_string();
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn invalid_signal_bind_fails() {
+        let mut cfg = valid_config();
+        cfg.signal_bind = "bad:addr:extra".to_string();
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn empty_account_fails() {
+        let mut cfg = valid_config();
+        cfg.allowed_account = "   ".to_string();
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn empty_instruments_fails() {
+        let mut cfg = valid_config();
+        cfg.allowed_instruments = vec![];
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn cooldown_ms_over_limit_fails() {
+        let mut cfg = valid_config();
+        cfg.cooldown_ms = 60_001;
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn cooldown_ms_at_limit_passes() {
+        let mut cfg = valid_config();
+        cfg.cooldown_ms = 60_000;
+        assert!(cfg.validate().is_ok());
+    }
+
+    #[test]
+    fn force_trade_once_with_bad_side_fails() {
+        let mut cfg = valid_config();
+        cfg.force_trade_once = true;
+        cfg.force_trade_side = "Long".to_string(); // invalid
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn force_trade_once_false_ignores_side_value() {
+        let mut cfg = valid_config();
+        cfg.force_trade_once = false;
+        cfg.force_trade_side = "NotAValidSide".to_string();
+        assert!(cfg.validate().is_ok());
+    }
+
+    #[test]
+    fn force_trade_once_with_sell_passes() {
+        let mut cfg = valid_config();
+        cfg.force_trade_once = true;
+        cfg.force_trade_side = "Sell".to_string();
+        assert!(cfg.validate().is_ok());
+    }
+
+    #[test]
+    fn zero_tape_tick_size_fails() {
+        let mut cfg = valid_config();
+        cfg.tape_tick_size = 0.0;
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn negative_tape_target_ticks_fails() {
+        let mut cfg = valid_config();
+        cfg.tape_target_ticks = -1.0;
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn negative_tape_stop_ticks_fails() {
+        let mut cfg = valid_config();
+        cfg.tape_stop_ticks = -0.01;
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn all_valid_non_deterministic_strategies_pass() {
+        for name in &["ema-momentum", "heikin-ashi", "tape-burst-scalper"] {
+            let mut cfg = valid_config();
+            cfg.strategy_name = name.to_string();
+            assert!(cfg.validate().is_ok(), "strategy {name} should pass validate()");
+        }
+    }
+
+    #[test]
+    fn unknown_strategy_name_fails() {
+        let mut cfg = valid_config();
+        cfg.strategy_name = "super-secret-strategy".to_string();
+        assert!(cfg.validate().is_err());
+    }
+}
+

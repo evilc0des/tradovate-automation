@@ -359,3 +359,204 @@ impl TapeWindowMetrics {
         self.buy_vol as i64 - self.sell_vol as i64
     }
 }
+
+// ── tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+
+    // ── Ema ───────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn ema_seeds_on_first_value() {
+        let mut ema = Ema::new(5);
+        assert!(ema.value().is_none());
+        ema.update(100.0);
+        assert_eq!(ema.value(), Some(100.0));
+    }
+
+    #[test]
+    fn ema_moves_toward_new_price() {
+        let mut ema = Ema::new(5);
+        ema.update(100.0); // seed
+        ema.update(120.0); // should move toward 120
+        let val = ema.value().unwrap();
+        assert!(val > 100.0 && val < 120.0, "EMA must be between seed and new price, got {val}");
+    }
+
+    #[test]
+    fn ema_alpha_for_period_5_is_correct() {
+        // alpha = 2 / (5 + 1) = 0.333…
+        // After seed=100, update=120: next = 100 + 0.333*(120-100) = 106.667
+        let mut e = Ema::new(5);
+        e.update(100.0);
+        e.update(120.0);
+        let expected = 100.0 + (2.0 / 6.0) * 20.0;
+        let actual = e.value().unwrap();
+        assert!((actual - expected).abs() < 1e-9, "EMA value mismatch: {actual} vs {expected}");
+    }
+
+    // ── RollingBars ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn rolling_bars_momentum_none_when_insufficient_data() {
+        let mut rb = RollingBars::default();
+        rb.push_close(100.0);
+        rb.push_close(101.0);
+        assert!(rb.momentum_n(3).is_none(), "momentum_3 needs 3 closes");
+    }
+
+    #[test]
+    fn rolling_bars_momentum_computes_correctly() {
+        let mut rb = RollingBars::default();
+        rb.push_close(100.0);
+        rb.push_close(102.0);
+        rb.push_close(105.0);
+        let m = rb.momentum_n(3).unwrap();
+        assert!((m - 5.0).abs() < 1e-9, "momentum_3 = newest - oldest = 105 - 100 = 5");
+    }
+
+    #[test]
+    fn rolling_bars_caps_at_max_len() {
+        let mut rb = RollingBars::default();
+        for i in 0..40 {
+            rb.push_close(i as f64);
+        }
+        // Default max_len = 32; we should have 32 entries.
+        assert_eq!(rb.closes.len(), 32);
+        // The oldest entry should be 40 - 32 = 8.
+        assert_eq!(rb.closes.front(), Some(&8.0));
+    }
+
+    // ── MarketState ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn update_quote_stores_bid_ask_last() {
+        let mut state = MarketState::default();
+        let ts = Utc::now();
+        state.update_quote("MES 06-26", Some(4990.0), Some(4991.0), Some(4990.5), ts);
+        let inst = state.get("MES 06-26").unwrap();
+        assert_eq!(inst.bid, Some(4990.0));
+        assert_eq!(inst.ask, Some(4991.0));
+        assert_eq!(inst.last, Some(4990.5));
+    }
+
+    #[test]
+    fn update_quote_increments_tick_count() {
+        let mut state = MarketState::default();
+        let ts = Utc::now();
+        state.update_quote("MES 06-26", Some(100.0), Some(101.0), Some(100.5), ts);
+        state.update_quote("MES 06-26", Some(100.0), Some(101.0), Some(100.5), ts);
+        let inst = state.get("MES 06-26").unwrap();
+        assert_eq!(inst.session.tick_count, 2);
+    }
+
+    #[test]
+    fn update_bar_close_warms_emas() {
+        let mut state = MarketState::default();
+        state.update_bar_close("MES 06-26", 101.0, 99.0, 100.0);
+        let inst = state.get("MES 06-26").unwrap();
+        assert_eq!(inst.ema_fast.value(), Some(100.0));
+        assert_eq!(inst.ema_slow.value(), Some(100.0));
+    }
+
+    #[test]
+    fn update_bar_close_computes_atr_from_second_bar() {
+        let mut state = MarketState::default();
+        // First bar: no prev_close → TR = high - low = 2
+        state.update_bar_close("MES 06-26", 101.0, 99.0, 100.0);
+        // Second bar: prev_close=100, high=102, low=99
+        // TR = max(102-99=3, |102-100|=2, |99-100|=1) = 3
+        state.update_bar_close("MES 06-26", 102.0, 99.0, 100.5);
+        let inst = state.get("MES 06-26").unwrap();
+        let atr = inst.atr_ema.value().unwrap();
+        // After seed=2, update=3: atr = 2 + alpha*(3-2) = 2 + (2/15) ≈ 2.133
+        let expected_seed = 2.0_f64;
+        let alpha = 2.0_f64 / 15.0;
+        let expected = expected_seed + alpha * (3.0 - expected_seed);
+        assert!((atr - expected).abs() < 1e-9, "ATR={atr}, expected {expected}");
+    }
+
+    #[test]
+    fn instruments_are_tracked_independently() {
+        let mut state = MarketState::default();
+        let ts = Utc::now();
+        state.update_quote("MES 06-26", Some(100.0), Some(101.0), Some(100.5), ts);
+        state.update_quote("NQ 06-26", Some(19000.0), Some(19001.0), Some(19000.5), ts);
+        assert_eq!(state.get("MES 06-26").unwrap().bid, Some(100.0));
+        assert_eq!(state.get("NQ 06-26").unwrap().bid, Some(19000.0));
+    }
+
+    #[test]
+    fn get_returns_none_for_unknown_instrument() {
+        let state = MarketState::default();
+        assert!(state.get("UNKNOWN").is_none());
+    }
+
+    // ── TapeState ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn tape_print_known_buy_side_stored_correctly() {
+        let mut tape = TapeState::default();
+        let ts = Utc::now();
+        tape.push_print(ts, 100.5, 10, Some("Buy"));
+        let p = tape.prints.back().unwrap();
+        assert!(p.is_buy);
+        assert_eq!(p.size, 10);
+    }
+
+    #[test]
+    fn tape_print_unknown_side_inferred_from_quote() {
+        let mut tape = TapeState::default();
+        let ts = Utc::now();
+        tape.push_quote(ts, 100.0, 101.0, 10, 10);
+        // price == ask → buy aggressor
+        tape.push_print(ts, 101.0, 5, None);
+        assert!(tape.prints.back().unwrap().is_buy);
+        // price == bid → sell aggressor
+        tape.push_print(ts, 100.0, 5, None);
+        assert!(!tape.prints.back().unwrap().is_buy);
+    }
+
+    #[test]
+    fn tape_window_metrics_buy_sell_aggregation() {
+        let mut tape = TapeState::default();
+        let t0 = Utc::now();
+        tape.push_print(t0, 100.0, 5, Some("Buy"));
+        tape.push_print(t0, 100.0, 3, Some("Sell"));
+        tape.push_print(t0, 100.0, 2, Some("Buy"));
+
+        // Since-epoch should include all prints.
+        let metrics = tape.window_metrics(t0 - chrono::Duration::seconds(1));
+        assert_eq!(metrics.buy_vol, 7);
+        assert_eq!(metrics.sell_vol, 3);
+        assert_eq!(metrics.print_count, 3);
+        assert_eq!(metrics.micro_delta(), 4);
+    }
+
+    #[test]
+    fn tape_window_metrics_excludes_old_prints() {
+        let mut tape = TapeState::default();
+        let old_ts = Utc::now() - chrono::Duration::seconds(10);
+        let recent_ts = Utc::now();
+        tape.push_print(old_ts, 100.0, 100, Some("Buy")); // outside window
+        tape.push_print(recent_ts, 100.0, 1, Some("Sell")); // inside window
+
+        let metrics = tape.window_metrics(Utc::now() - chrono::Duration::seconds(5));
+        assert_eq!(metrics.buy_vol, 0);
+        assert_eq!(metrics.sell_vol, 1);
+        assert_eq!(metrics.print_count, 1);
+    }
+
+    #[test]
+    fn tape_caps_at_max_events() {
+        let mut tape = TapeState::default();
+        let ts = Utc::now();
+        for _ in 0..(TAPE_MAX_EVENTS + 50) {
+            tape.push_print(ts, 100.0, 1, Some("Buy"));
+        }
+        assert_eq!(tape.prints.len(), TAPE_MAX_EVENTS);
+    }
+}

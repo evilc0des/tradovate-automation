@@ -196,18 +196,18 @@
 
 ## Phase 14 - Testing
 
-- [ ] Unit tests for NinjaTrader-side pure logic:
-  - [ ] signal validation
-  - [ ] risk rules
-  - [ ] deduplication
-  - [ ] reconciliation
-  - [ ] config validation
-- [ ] Unit tests for Rust-side logic:
-  - [ ] market data parsing
-  - [ ] state aggregation
-  - [ ] feature computation
-  - [ ] signal generation
-  - [ ] config validation
+- [x] Unit tests for NinjaTrader-side pure logic:
+  - [x] signal validation
+  - [x] risk rules
+  - [x] deduplication
+  - [x] reconciliation
+  - [x] config validation
+- [x] Unit tests for Rust-side logic:
+  - [x] market data parsing
+  - [x] state aggregation
+  - [x] feature computation
+  - [x] signal generation
+  - [x] config validation
 - [ ] Integration tests for local transport
 - [ ] Integration tests for end-to-end message flow
 - [ ] Simulation tests for market-data-in -> signal-out -> order-submit flow

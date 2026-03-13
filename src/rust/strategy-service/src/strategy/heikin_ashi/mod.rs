@@ -175,6 +175,18 @@ mod tests {
             cooldown_ms: 0, // disable cooldown so tests aren't timing-sensitive
             force_trade_once: false,
             force_trade_side: "Buy".to_string(),
+            tape_tick_size: 0.25,
+            tape_micro_delta_min: 10,
+            tape_aggression_ratio_min: 2.0,
+            tape_speed_factor_min: 1.5,
+            tape_price_response_min_ticks: 0.5,
+            tape_target_ticks: 4.0,
+            tape_stop_ticks: 2.0,
+            tape_time_stop_ms: 30_000,
+            tape_flip_delta: 5,
+            tape_session_start_utc: "00:00".to_string(),
+            tape_session_end_utc: "23:59".to_string(),
+            tape_wall_min_size: 1000,
         }
     }
 

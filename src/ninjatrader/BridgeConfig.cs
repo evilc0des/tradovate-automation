@@ -31,4 +31,5 @@ public sealed class BridgeConfig
     public string ReconciliationReportPath { get; init; } = "state/reconciliation-report.json";
     public string RuntimeMarkersPath { get; init; } = "state/runtime-markers.ndjson";
     public string AmbiguousSignalStorePath { get; init; } = "state/ambiguous-signals.txt";
+    public string LogDirectory { get; init; } = "logs";
 }

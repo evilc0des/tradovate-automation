@@ -15,6 +15,7 @@ namespace NinjaTrader.NinjaScript.Strategies
     public class BridgeRunnerStrategy : Strategy
     {
         private BridgeConfig _config;
+        private FileBridgeLogger _fileLogger;
         private ExecutionBridge _bridge;
         private SignalIntakeTransport _signalIntake;
         private NdjsonTcpMarketDataTransport _marketDataTransport;
@@ -74,7 +75,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                     AllowedSignalSources = new[] { "rust.strategy" },
                 };
 
-                var logger = new ConsoleBridgeLogger();
+                var logDir = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                    "NinjaTrader 8", "logs", "bridge");
+                _fileLogger = new FileBridgeLogger(logDir);
+                IBridgeLogger logger = _fileLogger;
                 IOrderSubmissionGateway orderGateway = NativeOrderSubmission
                     ? new NinjaTraderQueuedOrderSubmissionGateway(logger, EnqueueNativeOrder)
                     : new SimulatedOrderSubmissionGateway();
@@ -122,10 +127,15 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         _bridge.Shutdown();
                     }
+
+                    _fileLogger?.Dispose();
+                    _fileLogger = null;
                 }
                 catch
                 {
                     // Best effort shutdown in NinjaTrader script lifecycle.
+                    _fileLogger?.Dispose();
+                    _fileLogger = null;
                 }
             }
         }

@@ -27,6 +27,7 @@ public sealed class SafetyStateManager
     {
         IsDisarmed = false;
         LastReason = null;
+        _logger.Info("Safety state transition: armed.");
         Persist();
     }
 
@@ -34,6 +35,7 @@ public sealed class SafetyStateManager
     {
         IsDisarmed = true;
         LastReason = reason;
+        _logger.Warn($"Safety state transition: disarmed reason={reason}");
         Persist();
     }
 

@@ -182,17 +182,17 @@
 
 ## Phase 13 - Observability
 
-- [ ] Add structured logs on NinjaTrader side
-- [ ] Add structured logs on Rust side
-- [ ] Log market data publisher status
-- [ ] Log strategy signal generation
-- [ ] Log signal receipt and validation
-- [ ] Log risk decisions
-- [ ] Log order submissions
-- [ ] Log order lifecycle
-- [ ] Log reconciliation outcomes
-- [ ] Log safety state transitions
-- [ ] Add per-day log files if practical
+- [x] Add structured logs on NinjaTrader side
+- [x] Add structured logs on Rust side
+- [x] Log market data publisher status
+- [x] Log strategy signal generation
+- [x] Log signal receipt and validation
+- [x] Log risk decisions
+- [x] Log order submissions
+- [x] Log order lifecycle
+- [x] Log reconciliation outcomes
+- [x] Log safety state transitions
+- [x] Add per-day log files if practical
 
 ## Phase 14 - Testing
 

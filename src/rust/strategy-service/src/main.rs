@@ -260,7 +260,14 @@ async fn main() -> Result<()> {
                             log_error(ErrorKind::Transport, "signal_dispatch", &err);
                             error!(error = %err, signal_id = %signal.signal_id, "failed to dispatch signal");
                         } else {
-                            info!(signal_id = %signal.signal_id, instrument = %signal.instrument, side = %signal.side, "signal dispatched");
+                            info!(
+                                signal_id = %signal.signal_id,
+                                strategy_id = %signal.strategy_id,
+                                instrument = %signal.instrument,
+                                side = %signal.side,
+                                reason = %signal.reason,
+                                "signal dispatched"
+                            );
                         }
                     }
                 }

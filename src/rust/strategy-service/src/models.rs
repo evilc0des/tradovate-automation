@@ -100,4 +100,9 @@ pub struct TradeSignal {
     pub quantity: u32,
     pub order_type: String,
     pub reason: String,
+    /// Signal intent: `"entry"` (default), `"exit"` (strategy-driven close),
+    /// or `"flatten"` (forced close due to event blackout).
+    /// Absent / `None` is treated as `"entry"` by the bridge.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub instruction: Option<String>,
 }

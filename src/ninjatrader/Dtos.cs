@@ -43,6 +43,15 @@ public sealed class TradeSignal
 
     [JsonPropertyName("reason")]
     public string? Reason { get; set; }
+
+    /// <summary>
+    /// Optional signal intent from the source system.
+    /// Accepted values: <c>"entry"</c> (default when absent), <c>"exit"</c>
+    /// (strategy-driven close), <c>"flatten"</c> (forced close due to event
+    /// blackout).  Exit and flatten instructions bypass the event blackout gate.
+    /// </summary>
+    [JsonPropertyName("instruction")]
+    public string? Instruction { get; set; }
 }
 
 public sealed class SignalAck

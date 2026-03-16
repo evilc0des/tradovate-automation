@@ -32,6 +32,11 @@ pub trait Strategy: Send {
         msg: &MarketDataMessage,
         features: Option<&FeatureSnapshot>,
     ) -> Option<TradeSignal>;
+
+    /// Returns `true` if the strategy believes it holds an open position for
+    /// `instrument`.  Used by the main loop to decide whether to emit a flatten
+    /// signal when entering an event blackout window.
+    fn has_open_position(&self, instrument: &str) -> bool;
 }
 
 // ── Factory ───────────────────────────────────────────────────────────────────
@@ -45,8 +50,9 @@ pub fn build_strategy(cfg: &AppConfig) -> Box<dyn Strategy> {
     }
 }
 
-// ── Shared signal builder ─────────────────────────────────────────────────────
+// ── Shared signal builders ────────────────────────────────────────────────────
 
+/// Builds a new-entry signal (default case).
 pub(crate) fn build_signal(
     cfg: &AppConfig,
     msg: &MarketDataMessage,
@@ -69,5 +75,61 @@ pub(crate) fn build_signal(
         quantity: 1,
         order_type: "Market".to_string(),
         reason: reason.to_string(),
+        instruction: Some("entry".to_string()),
+    }
+}
+
+/// Builds a strategy-driven exit signal (target, stop, flow-failure, etc.).
+pub(crate) fn build_exit_signal(
+    cfg: &AppConfig,
+    msg: &MarketDataMessage,
+    strategy_id: &str,
+    side: &str,
+    reason: &str,
+) -> TradeSignal {
+    let signal_id = Uuid::new_v4().to_string();
+    TradeSignal {
+        message_type: "TradeSignal".to_string(),
+        version: "v1".to_string(),
+        timestamp: Utc::now(),
+        source_id: "rust.strategy".to_string(),
+        correlation_id: signal_id.clone(),
+        signal_id,
+        strategy_id: strategy_id.to_string(),
+        account: cfg.allowed_account.clone(),
+        instrument: msg.instrument.clone(),
+        side: side.to_string(),
+        quantity: 1,
+        order_type: "Market".to_string(),
+        reason: reason.to_string(),
+        instruction: Some("exit".to_string()),
+    }
+}
+
+/// Builds a forced-flatten signal that instructs the bridge to close all open
+/// positions for `instrument`.  Emitted by the main loop when entering a
+/// blackout window while the strategy holds a tracked position.
+pub(crate) fn build_flatten_signal(
+    cfg: &AppConfig,
+    msg: &MarketDataMessage,
+    strategy_id: &str,
+    reason: &str,
+) -> TradeSignal {
+    let signal_id = Uuid::new_v4().to_string();
+    TradeSignal {
+        message_type: "TradeSignal".to_string(),
+        version: "v1".to_string(),
+        timestamp: Utc::now(),
+        source_id: "rust.strategy".to_string(),
+        correlation_id: signal_id.clone(),
+        signal_id,
+        strategy_id: strategy_id.to_string(),
+        account: cfg.allowed_account.clone(),
+        instrument: msg.instrument.clone(),
+        side: "Sell".to_string(), // advisory; bridge uses instruction=flatten to close all
+        quantity: 1,
+        order_type: "Market".to_string(),
+        reason: reason.to_string(),
+        instruction: Some("flatten".to_string()),
     }
 }

@@ -66,6 +66,28 @@ pub struct AppConfig {
     /// near-wall proxy.  Entry is suppressed when the near-touch size meets
     /// or exceeds this value.  Set very high (default 1000) to disable.
     pub tape_wall_min_size: u32,
+
+    // ── Event blackout ────────────────────────────────────────────────────────
+
+    /// Radius in minutes around each session/news event where new entries are
+    /// blocked.  Signals with `instruction = "exit"` or `"flatten"` bypass
+    /// this gate.  Default 3 means ±3 minutes.
+    pub event_blackout_radius_mins: i64,
+
+    /// Enable the external news calendar feed.  When `false`, only the static
+    /// session events (Asia/London/NY open+close) apply.
+    pub news_enabled: bool,
+
+    /// URL for the weekly high-impact news calendar JSON.
+    /// Default: Forex Factory public feed.
+    pub news_api_url: String,
+
+    /// How often (in seconds) to refresh the news calendar from the API.
+    pub news_api_poll_secs: u64,
+
+    /// Seconds after the last successful fetch before the feed is considered
+    /// stale.  When stale the fail-safe policy blocks all new entries.
+    pub news_api_stale_secs: u64,
 }
 
 impl AppConfig {
@@ -96,6 +118,11 @@ impl AppConfig {
             tape_session_start_utc: cli.tape_session_start_utc.trim().to_string(),
             tape_session_end_utc: cli.tape_session_end_utc.trim().to_string(),
             tape_wall_min_size: cli.tape_wall_min_size,
+            event_blackout_radius_mins: cli.event_blackout_radius_mins,
+            news_enabled: cli.news_enabled,
+            news_api_url: cli.news_api_url.trim().to_string(),
+            news_api_poll_secs: cli.news_api_poll_secs,
+            news_api_stale_secs: cli.news_api_stale_secs,
         }
     }
 
@@ -184,6 +211,11 @@ mod tests {
             tape_session_start_utc: "00:00".to_string(),
             tape_session_end_utc: "23:59".to_string(),
             tape_wall_min_size: 1000,
+            event_blackout_radius_mins: 3,
+            news_enabled: false,
+            news_api_url: "https://nfs.faireconomy.media/ff_calendar_thisweek.json".to_string(),
+            news_api_poll_secs: 3600,
+            news_api_stale_secs: 86400,
         }
     }
 

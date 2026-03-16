@@ -131,6 +131,37 @@ pub struct Cli {
     /// [env: TAPE_WALL_MIN_SIZE]
     #[arg(long, env = "TAPE_WALL_MIN_SIZE", default_value = "1000")]
     pub tape_wall_min_size: u32,
+
+    // ── Event blackout ────────────────────────────────────────────────────────
+
+    /// Minutes before and after each session/news event where new entries are
+    /// suppressed.  Exit and flatten signals are never blocked.  Default 3.
+    /// [env: EVENT_BLACKOUT_RADIUS_MINS]
+    #[arg(long, env = "EVENT_BLACKOUT_RADIUS_MINS", default_value = "3")]
+    pub event_blackout_radius_mins: i64,
+
+    /// Enable the external news calendar feed.  When false only the built-in
+    /// session events (Asia/London/NY open+close) impose blackout windows.
+    /// [env: NEWS_ENABLED]
+    #[arg(long, env = "NEWS_ENABLED", default_value = "false")]
+    pub news_enabled: bool,
+
+    /// URL for the weekly high-impact news calendar JSON feed.
+    /// [env: NEWS_API_URL]
+    #[arg(long, env = "NEWS_API_URL",
+          default_value = "https://nfs.faireconomy.media/ff_calendar_thisweek.json")]
+    pub news_api_url: String,
+
+    /// How often (seconds) to refresh the news calendar from the API.
+    /// [env: NEWS_API_POLL_SECS]
+    #[arg(long, env = "NEWS_API_POLL_SECS", default_value = "3600")]
+    pub news_api_poll_secs: u64,
+
+    /// Seconds since last successful fetch before the feed is considered stale.
+    /// When stale the fail-safe policy blocks all new entries.
+    /// [env: NEWS_API_STALE_SECS]
+    #[arg(long, env = "NEWS_API_STALE_SECS", default_value = "86400")]
+    pub news_api_stale_secs: u64,
 }
 
 /// Available strategy names.

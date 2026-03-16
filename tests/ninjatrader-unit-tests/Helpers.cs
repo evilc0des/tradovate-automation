@@ -19,7 +19,11 @@ internal static class Helpers
         int maxQty = 1,
         int maxAgeMs = 5000,
         string sessionStart = "00:00",
-        string sessionEnd = "23:59")
+        string sessionEnd = "23:59",
+        int eventBlackoutMins = 3,
+        // Default empty so existing tests are never accidentally blocked by event times.
+        string sessionEventTimes = "",
+        string newsEventTimes = "")
     =>
         new BridgeConfig
         {
@@ -32,6 +36,9 @@ internal static class Helpers
             MaxSignalAgeMs = maxAgeMs,
             SessionStartUtc = sessionStart,
             SessionEndUtc = sessionEnd,
+            EventBlackoutRadiusMinutes = eventBlackoutMins,
+            SessionEventTimesUtc = sessionEventTimes,
+            NewsEventTimesUtc = newsEventTimes,
         };
 
     public static TradeSignal ValidSignal(

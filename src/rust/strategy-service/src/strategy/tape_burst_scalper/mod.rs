@@ -7,7 +7,7 @@ use crate::config::AppConfig;
 use crate::features::FeatureSnapshot;
 use crate::models::MarketDataMessage;
 
-use super::{build_signal, Strategy, TradeSignal};
+use super::{build_exit_signal, build_signal, Strategy, TradeSignal};
 
 // ── Internal decision type ────────────────────────────────────────────────────
 
@@ -90,6 +90,13 @@ fn within_session(event_time: DateTime<Utc>, start: &str, end: &str) -> bool {
 impl Strategy for TapeBurstScalperStrategy {
     fn strategy_id(&self) -> &str {
         "tape-burst-scalper-v1"
+    }
+
+    fn has_open_position(&self, instrument: &str) -> bool {
+        self.per_instrument
+            .get(instrument)
+            .map(|s| s.open_trade.is_some())
+            .unwrap_or(false)
     }
 
     fn on_market_data(
@@ -178,7 +185,7 @@ impl Strategy for TapeBurstScalperStrategy {
             Some(ExitDecision::Exit { side, reason }) => {
                 state.open_trade = None;
                 state.last_emitted = Some(Instant::now());
-                return Some(build_signal(cfg, msg, self.strategy_id(), side, &reason));
+                return Some(build_exit_signal(cfg, msg, self.strategy_id(), side, &reason));
             }
             Some(ExitDecision::Hold) => return None, // still in position, no action
             None => {}                               // not in position — evaluate entry

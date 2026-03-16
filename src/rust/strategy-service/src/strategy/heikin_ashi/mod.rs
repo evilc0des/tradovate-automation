@@ -59,6 +59,10 @@ impl Strategy for HeikinAshiStrategy {
         "heikin-ashi-v1"
     }
 
+    fn has_open_position(&self, _instrument: &str) -> bool {
+        false // Heikin Ashi does not track position state; flatten handled externally
+    }
+
     fn on_market_data(
         &mut self,
         cfg: &AppConfig,
@@ -187,6 +191,11 @@ mod tests {
             tape_session_start_utc: "00:00".to_string(),
             tape_session_end_utc: "23:59".to_string(),
             tape_wall_min_size: 1000,
+            event_blackout_radius_mins: 3,
+            news_enabled: false,
+            news_api_url: String::new(),
+            news_api_poll_secs: 3600,
+            news_api_stale_secs: 86400,
         }
     }
 

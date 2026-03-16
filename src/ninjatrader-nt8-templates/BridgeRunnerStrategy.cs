@@ -239,7 +239,15 @@ namespace NinjaTrader.NinjaScript.Strategies
                 try
                 {
                     var signalName = $"bridge-{signal.SignalId}";
-                    if (string.Equals(signal.Side, "Buy", StringComparison.OrdinalIgnoreCase))
+                    var instruction = signal.Instruction ?? "entry";
+
+                    if (string.Equals(instruction, "flatten", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Close all open positions for this instrument (qty 0 = all in NT8 managed).
+                        ExitLong(0, signalName, "");
+                        ExitShort(0, signalName, "");
+                    }
+                    else if (string.Equals(signal.Side, "Buy", StringComparison.OrdinalIgnoreCase))
                     {
                         EnterLong((int)signal.Quantity, signalName);
                     }

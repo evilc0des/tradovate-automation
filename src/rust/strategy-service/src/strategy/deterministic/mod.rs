@@ -34,6 +34,10 @@ impl Strategy for DeterministicStrategy {
         "deterministic-v1"
     }
 
+    fn has_open_position(&self, _instrument: &str) -> bool {
+        false // deterministic strategy does not track position state
+    }
+
     fn on_market_data(
         &mut self,
         cfg: &AppConfig,

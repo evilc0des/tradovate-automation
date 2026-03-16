@@ -5,7 +5,7 @@ use crate::config::AppConfig;
 use crate::features::FeatureSnapshot;
 use crate::models::MarketDataMessage;
 
-use super::{build_signal, Strategy, TradeSignal};
+use super::{build_exit_signal, build_signal, Strategy, TradeSignal};
 
 // ── EmaMomentumStrategy ───────────────────────────────────────────────────────
 //
@@ -49,6 +49,10 @@ impl EmaMomentumStrategy {
 impl Strategy for EmaMomentumStrategy {
     fn strategy_id(&self) -> &str {
         "ema-momentum-v1"
+    }
+
+    fn has_open_position(&self, instrument: &str) -> bool {
+        self.open_position.contains_key(instrument)
     }
 
     fn on_market_data(
@@ -101,7 +105,7 @@ impl Strategy for EmaMomentumStrategy {
                     self.open_position.remove(&msg.instrument);
                     // Reset regime so the next entry requires a fresh crossover.
                     self.prev_fast_above_slow.remove(&msg.instrument);
-                    return Some(build_signal(
+                    return Some(build_exit_signal(
                         cfg,
                         msg,
                         self.strategy_id(),

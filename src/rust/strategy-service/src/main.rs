@@ -1,8 +1,10 @@
 mod cli;
 mod config;
 mod errors;
+mod events;
 mod features;
 mod models;
+mod news_feed;
 mod state;
 mod strategy;
 mod transport;
@@ -19,9 +21,10 @@ use tracing_subscriber::EnvFilter;
 use crate::cli::Cli;
 use crate::config::AppConfig;
 use crate::errors::{log_error, log_message, ErrorKind};
+use crate::events::EventCalendar;
 use crate::models::{BarUpdateMessage, InboundEnvelope, MarketDataMessage, QuoteUpdateMessage, TradePrintMessage};
 use crate::state::MarketState;
-use crate::strategy::build_strategy;
+use crate::strategy::{build_flatten_signal, build_strategy};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -53,6 +56,16 @@ async fn main() -> Result<()> {
     let mut strategy = build_strategy(&cfg);
     let mut warned_instruments: HashSet<String> = HashSet::new();
     info!(strategy_id = %strategy.strategy_id(), "active strategy loaded");
+
+    // ── Event blackout calendar ───────────────────────────────────────────────────
+    let mut calendar = EventCalendar::new();
+    // Stale by default so the first iteration triggers a fetch when news_enabled.
+    let mut last_news_refresh = std::time::Instant::now()
+        .checked_sub(std::time::Duration::from_secs(cfg.news_api_poll_secs + 1))
+        .unwrap_or_else(std::time::Instant::now);
+    // Per-instrument: have we already emitted a flatten for the current blackout window?
+    let mut blackout_flatten_emitted: std::collections::HashMap<String, bool> =
+        std::collections::HashMap::new();
 
     loop {
         tokio::select! {
@@ -254,17 +267,108 @@ async fn main() -> Result<()> {
                         continue;
                     }
 
-                    let features = features::compute_features(&market_state, &msg.instrument, msg.timestamp);
+                    // ── Periodic news calendar refresh ────────────────────────────────────
+                    if cfg.news_enabled
+                        && last_news_refresh.elapsed().as_secs() >= cfg.news_api_poll_secs
+                    {
+                        calendar.check_staleness(cfg.news_api_stale_secs);
+                        match news_feed::fetch_news_events(&cfg.news_api_url).await {
+                            Ok(events) => {
+                                info!(count = events.len(), "news calendar refreshed");
+                                calendar.apply_news(events);
+                            }
+                            Err(err) => {
+                                warn!(
+                                    error = %err,
+                                    "news calendar fetch failed — applying fail-safe flat policy"
+                                );
+                                calendar.mark_feed_failed();
+                            }
+                        }
+                        last_news_refresh = std::time::Instant::now();
+                    }
+
+                    // ── Event blackout gate ───────────────────────────────────────────────
+                    // Stale feed → fail-safe flat (block all new entries).
+                    let stale_failsafe = cfg.news_enabled && !calendar.feed_healthy;
+                    let blackout_reason = if stale_failsafe {
+                        Some("news-feed-stale-failsafe".to_string())
+                    } else {
+                        calendar.in_any_blackout(msg.timestamp, cfg.event_blackout_radius_mins)
+                    };
+
+                    // Emit one flatten per instrument on blackout entry while position is held.
+                    if blackout_reason.is_some() {
+                        let already_emitted = blackout_flatten_emitted
+                            .get(&msg.instrument)
+                            .copied()
+                            .unwrap_or(false);
+                        if !already_emitted && strategy.has_open_position(&msg.instrument) {
+                            let flatten = build_flatten_signal(
+                                &cfg,
+                                &msg,
+                                strategy.strategy_id(),
+                                &format!(
+                                    "blackout-flatten:{}",
+                                    blackout_reason.as_ref().unwrap()
+                                ),
+                            );
+                            if let Err(err) =
+                                transport::send_signal(&cfg.signal_bind, &flatten).await
+                            {
+                                log_error(ErrorKind::Transport, "flatten_dispatch", &err);
+                                error!(
+                                    error = %err,
+                                    signal_id = %flatten.signal_id,
+                                    "failed to dispatch flatten signal"
+                                );
+                            } else {
+                                info!(
+                                    signal_id = %flatten.signal_id,
+                                    instrument = %flatten.instrument,
+                                    reason = %flatten.reason,
+                                    "flatten signal dispatched (event blackout)"
+                                );
+                            }
+                            blackout_flatten_emitted.insert(msg.instrument.clone(), true);
+                        }
+                    } else {
+                        // Exiting blackout: reset so we flatten again on next re-entry.
+                        blackout_flatten_emitted.remove(&msg.instrument);
+                    }
+
+                    // ── Strategy execution ────────────────────────────────────────────────
+                    let features =
+                        features::compute_features(&market_state, &msg.instrument, msg.timestamp);
                     if let Some(signal) = strategy.on_market_data(&cfg, &msg, features.as_ref()) {
-                        if let Err(err) = transport::send_signal(&cfg.signal_bind, &signal).await {
+                        let is_entry = signal
+                            .instruction
+                            .as_deref()
+                            .unwrap_or("entry")
+                            == "entry";
+                        if is_entry && (blackout_reason.is_some() || stale_failsafe) {
+                            warn!(
+                                instrument = %signal.instrument,
+                                blackout = ?blackout_reason,
+                                stale = stale_failsafe,
+                                "entry signal suppressed: event blackout"
+                            );
+                        } else if let Err(err) =
+                            transport::send_signal(&cfg.signal_bind, &signal).await
+                        {
                             log_error(ErrorKind::Transport, "signal_dispatch", &err);
-                            error!(error = %err, signal_id = %signal.signal_id, "failed to dispatch signal");
+                            error!(
+                                error = %err,
+                                signal_id = %signal.signal_id,
+                                "failed to dispatch signal"
+                            );
                         } else {
                             info!(
                                 signal_id = %signal.signal_id,
                                 strategy_id = %signal.strategy_id,
                                 instrument = %signal.instrument,
                                 side = %signal.side,
+                                instruction = ?signal.instruction,
                                 reason = %signal.reason,
                                 "signal dispatched"
                             );
